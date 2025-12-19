@@ -1338,7 +1338,8 @@ theorem FullWalk.get_dest_nin_segs
 theorem FullWalk.split_by_segs
   (h : FullWalk ctx origin dest segments)
   (hsegs : segments = segs₁ ++ [middle] ++ segs₂)
-  : FullWalk ctx origin middle segs₁ ∧ FullWalk ctx middle dest segs₂ := by sorry
+  : FullWalk ctx origin middle segs₁ ∧ FullWalk ctx middle dest segs₂ := by
+  sorry
 
 
 
@@ -1658,53 +1659,53 @@ theorem FullWalk.getReachables_complete
 
 
 
-/-- That if it returns `true` we can produce a `Walk` from `current` to `dest` -/
-@[grind →]
-theorem Walk.getReachables_sound {current : V}
-  (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
-  (h : dest ∈ Walk.getReachables graph current seenRefs)
-  : Walk graph current dest := by
-  fun_induction Walk.getReachables graph current seenRefs generalizing dest with
-  | case1 =>
-    expose_names
+-- /-- That if it returns `true` we can produce a `Walk` from `current` to `dest` -/
+-- @[grind →]
+-- theorem Walk.getReachables_sound {current : V}
+--   (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
+--   (h : dest ∈ Walk.getReachables graph current seenRefs)
+--   : Walk graph current dest := by
+--   fun_induction Walk.getReachables graph current seenRefs generalizing dest with
+--   | case1 =>
+--     expose_names
 
-    -- There's a loop so we should be able to get from either to either
+--     -- There's a loop so we should be able to get from either to either
 
-    have := hseenswalk _ h
-    have := hseenswalk _ h_1
+--     have := hseenswalk _ h
+--     have := hseenswalk _ h_1
 
-  | @case2 current seenRefs currin nodes ih =>
-    simp at h
-    obtain ⟨node,nodein,prf⟩ := h
-    rcases prf with heq | destin
-    · subst_eqs
-      unfold nodes at nodein
-      refine .direct ?_
-      exact nodein
-    · have curr_to_node : Walk graph current node := .direct nodein
-      refine .indirect (.direct nodein) ?_
-      apply ih node _ destin
-      simp [curr_to_node]
-      intro seen seenin
-      refine .indirect ?_ curr_to_node
-      apply hseenswalk _ seenin
-
-
+--   | @case2 current seenRefs currin nodes ih =>
+--     simp at h
+--     obtain ⟨node,nodein,prf⟩ := h
+--     rcases prf with heq | destin
+--     · subst_eqs
+--       unfold nodes at nodein
+--       refine .direct ?_
+--       exact nodein
+--     · have curr_to_node : Walk graph current node := .direct nodein
+--       refine .indirect (.direct nodein) ?_
+--       apply ih node _ destin
+--       simp [curr_to_node]
+--       intro seen seenin
+--       refine .indirect ?_ curr_to_node
+--       apply hseenswalk _ seenin
 
 
 
 
 
 
-/-- The completeness theorem for the case where `seenRefs` is empty and where `current ≠ dest` -/
-theorem FullWalk.getReachables_fresh_curr_neq_dest {current : V}
-  (shortestWalk : FullWalk ctx current dest segments)
-  -- (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
-  (segsunique : (current :: dest :: segments).Nodup)
-  : dest ∈ Walk.getReachables ctx current ∅ := by
-  refine FullWalk.getReachables_complete ?_ shortestWalk ?_ segsunique
-  · simp
-  · simp
+
+
+-- /-- The completeness theorem for the case where `seenRefs` is empty and where `current ≠ dest` -/
+-- theorem FullWalk.getReachables_fresh_curr_neq_dest {current : V}
+--   (shortestWalk : FullWalk ctx current dest segments)
+--   -- (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
+--   (segsunique : (current :: dest :: segments).Nodup)
+--   : dest ∈ Walk.getReachables ctx current ∅ := by
+--   refine FullWalk.getReachables_complete ?_ shortestWalk ?_ segsunique
+--   · simp
+--   · simp
 
 
 
@@ -1725,73 +1726,73 @@ theorem FullWalk.getReachables_fresh_curr_neq_dest {current : V}
 
 
 
-/-- The two-way theorem `↔` -/
-theorem FullWalk.getReachables_fresh_iff {current : V}
-  : (∃ segments, FullWalk ctx current dest segments) ↔ dest ∈ Walk.getReachables ctx current ∅ := by
-  constructor
-  · intro ⟨ segments, walk ⟩
-    have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
-    by_cases hdesteq : dest = current
-    · subst_eqs
-      unfold Walk.getReachables
-      simp
-      cases walk using FullWalk.cons_induction with
-      | direct dref =>
-        expose_names
-        exists dest,dref
-        simp
+-- /-- The two-way theorem `↔` -/
+-- theorem FullWalk.getReachables_fresh_iff {current : V}
+--   : (∃ segments, FullWalk ctx current dest segments) ↔ dest ∈ Walk.getReachables ctx current ∅ := by
+--   constructor
+--   · intro ⟨ segments, walk ⟩
+--     have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
+--     by_cases hdesteq : dest = current
+--     · subst_eqs
+--       unfold Walk.getReachables
+--       simp
+--       cases walk using FullWalk.cons_induction with
+--       | direct dref =>
+--         expose_names
+--         exists dest,dref
+--         simp
 
-      | cons dref htail ih =>
-        clear ih
-        expose_names
-        have := htail.getReachables_fresh_curr_neq_dest ?_
+--       | cons dref htail ih =>
+--         clear ih
+--         expose_names
+--         have := htail.getReachables_fresh_curr_neq_dest ?_
 
-        · subst_eqs
-          -- simp [*]
+--         · subst_eqs
+--           -- simp [*]
 
-        unfold Walk.getReachables
-        simp
-        exists _,dref
-        by_cases hdesteq : dest_1 = head
-        · simp [*]
-        · simp [*]
-          unfold Walk.getReachables
-          simp
-
-
-      simp [*] at ⊢ hunique
-
-  · intro prem
-    have walk := FullWalk.getReachables_sound (by simp) prem
-    exact walk.toFullWalk
+--         unfold Walk.getReachables
+--         simp
+--         exists _,dref
+--         by_cases hdesteq : dest_1 = head
+--         · simp [*]
+--         · simp [*]
+--           unfold Walk.getReachables
+--           simp
 
 
+--       simp [*] at ⊢ hunique
 
-
-/-- The two-way theorem `↔` -/
-theorem FullWalk.decideBool_fresh_iff
-  : (∃ segments, FullWalk ctx current dest segments) ↔ Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
-  constructor
-  · intro ⟨ segments, walk ⟩
-    have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
-    exact uniquewalk.decideBool_fresh_complete_full_walk hunique
-  · intro prem
-    have walk := Walk.decideBool_sound prem
-    exact walk.toFullWalk
+--   · intro prem
+--     have walk := FullWalk.getReachables_sound (by simp) prem
+--     exact walk.toFullWalk
 
 
 
 
-theorem Walk.decideBool_fresh_iff
-  : Walk ctx current dest ↔ Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
-  constructor
-  · intro walk
-    have ⟨ segments, walk ⟩ := walk.toFullWalk
-    have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
-    exact uniquewalk.decideBool_fresh_complete_full_walk hunique
-  · intro prem
-    have walk := Walk.decideBool_sound prem
-    exact walk
+-- /-- The two-way theorem `↔` -/
+-- theorem FullWalk.decideBool_fresh_iff
+--   : (∃ segments, FullWalk ctx current dest segments) ↔ Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
+--   constructor
+--   · intro ⟨ segments, walk ⟩
+--     have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
+--     exact uniquewalk.decideBool_fresh_complete_full_walk hunique
+--   · intro prem
+--     have walk := Walk.decideBool_sound prem
+--     exact walk.toFullWalk
+
+
+
+
+-- theorem Walk.decideBool_fresh_iff
+--   : Walk ctx current dest ↔ Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
+--   constructor
+--   · intro walk
+--     have ⟨ segments, walk ⟩ := walk.toFullWalk
+--     have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
+--     exact uniquewalk.decideBool_fresh_complete_full_walk hunique
+--   · intro prem
+--     have walk := Walk.decideBool_sound prem
+--     exact walk
 
 
 
@@ -1855,26 +1856,35 @@ theorem Walk.decideBool_sound [Fintype V] {current : V}
 
 
 
+-- omit [Fintype V] in
+-- /-- That if it returns `true` we can produce a `Walk` from `current` to `dest` -/
+-- @[grind →]
+-- theorem FullWalk.decideBool_sound [Fintype V] {current : V}
+--   (horigtocurr : Walk graph origin current)
+--   -- (hseenstocurr : ∀ seen ∈ seenRefs, Walk graph seen current)
+--   (h : Walk.decideBool graph origin current dest seenRefs = true)
+--   : ∃ segments, ∃ (_ : current ∈ segments), FullWalk graph origin dest segments := by
+--   fun_induction Walk.decideBool graph origin current dest seenRefs with
+--   | case1 seenRefs =>
+--     exact horigtocurr
+--   | case2 => contradiction
+--   | case3 current seenRefs hneq hcurrninseen result ih =>
+--     simp [result] at h ih
+--     obtain ⟨child,dref, prf⟩ := h
+--     exact ih child (.indirect horigtocurr (.direct dref)) prf
 
--- def List.split := List.splitAt
+
+
 
 
 theorem FullWalk.decideBool_complete {current : V}
   (horigtocurr : Walk graph origin current)
   (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
   (shortestWalk : FullWalk graph origin dest segments)
-  -- (noOverlap : ∀ seen ∈ seenRefs, seen ∉ segments)
-  -- (noOverlap : ∀ seenindex, (_ : seenindex < seenRefs.length) → seenRefs.drop (seenindex))
-  -- (currindexltsegs : currIndex < segments.length)
-  -- (segsplit : (segsprecurr,current :: segswithcurr) = segments.splitAt currIndex)
   (segsplit : segsprecurr ++ [current] ++ segspostcurr = segments)
   (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: segspostcurr)
-  -- (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup ∧ (current :: segments).Nodup)
   (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
-  -- (currinsegs : current ∈ segments)
   : Walk.decideBool graph origin current dest seenRefs = true := by
-  have currinsegs : current ∈ segments := by grind -- derivable from segsplit
-
   fun_induction Walk.decideBool graph origin current dest seenRefs
     generalizing segments segsprecurr segspostcurr
   with
@@ -1884,16 +1894,11 @@ theorem FullWalk.decideBool_complete {current : V}
     simp at this
 
   | @case3 current seenRefs currneqdest currninseen result ih =>
-
-
     simp [result, *] at segsunique ⊢
     obtain ⟨⟨orignseg,segnodup⟩,⟨destninseg,a⟩⟩ := segsunique
     clear a
 
-    -- have ⟨currsegindex,indexlt,prf⟩ := segments.mem_iff_getElem.mp currinsegs
-    -- have currtodest := shortestWalk.from_seg_to_end segsprecurr.length (by grind)
     have ⟨origtocurr,currtodest⟩ := shortestWalk.split_by_segs (Eq.symm segsplit)
-    -- simp [*] at currtodest
 
     cases hl : segspostcurr with
     | nil =>
@@ -1907,12 +1912,10 @@ theorem FullWalk.decideBool_complete {current : V}
     | cons head tail =>
       rw [hl] at currtodest
       exists head, ref_segment_cons currtodest rfl
-      -- have origtohead : Walk graph origin head := by grind
       have drefcurrtohead := currtodest.ref_segment_cons rfl
-      -- simp [*] at ih
       have walkcurrtohead := Walk.direct drefcurrtohead
 
-      apply ih head _ _ shortestWalk (segsprecurr:=segsprecurr++[current]) (segspostcurr:= tail) (by grind) _ (by grind) (by grind)
+      apply ih head _ _ shortestWalk (segsprecurr:=segsprecurr++[current]) (segspostcurr:= tail) (by grind) _ (by grind)
       · refine .indirect horigtocurr walkcurrtohead
       · simp
         constructor
@@ -1932,259 +1935,6 @@ theorem FullWalk.decideBool_complete {current : V}
 
 
 
-      -- apply ih head origtohead ?_ shortestWalk ?_ (by grind) ?_
-      -- · simp
-      --   constructor
-      --   · refine .direct drefcurrtohead
-      --   · intro seen seenin
-      --     refine .indirect ?_ (.direct drefcurrtohead)
-      --     exact hseenswalk seen seenin
-      -- · simp
-      --   constructor
-      --   ·
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-set_option maxHeartbeats 800_000 in
-/-- The completeness theorem for the recursive case where `seenRefs` is non-empty -/
-@[grind →]
-theorem FullWalk.decideBool_complete
-  (hseenswalk : ∀ seen ∈ seenRefs, Walk ctx seen current)
-  (shortestWalk : FullWalk ctx current dest segments)
-  (noOverlap : ∀ seen ∈ seenRefs, seen ∉ segments)
-  (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
-  : Walk.decideBool ctx current dest hCurrLt ctxLt seenRefs seenLt currninseen = true := by
-  fun_induction Walk.decideBool ctx current dest hCurrLt ctxLt seenRefs seenLt currninseen
-    generalizing segments
-  with
-  | case1 => grind
-  | case2 => rfl
-  | case3 => grind
-  | case4 =>
-    expose_names
-    have := FullWalk.ref_iff_dest shortestWalk h
-    simp [*] at this
-    grind
-
-  | case5 =>
-    expose_names
-    have curr_to_j : Walk ctx current_1 j := by grind
-    have := FullWalk.ref_iff_dest shortestWalk h
-    simp [*] at this
-    obtain ⟨segTail,segsprf,fw⟩ := this
-
-    apply ih1 (segments:=segTail) _ fw
-    · simp at segsunique
-      grind
-    · simp [*]
-      grind
-    · simp
-      grind
-
-  | case6 =>
-    expose_names
-    unfold aa at *
-    unfold bb at *
-
-    -- Split into 16 branches based on whether j,k equal current or are in seenRefs
-    by_cases hjeqcurr : j = current_1 <;>
-    by_cases hjinseens : j ∈ seenRefs_1 <;>
-    by_cases hkeqcurr : k = current_1 <;>
-    by_cases hkinseens : k ∈ seenRefs_1
-
-    -- Trivial contradiction cases (elements in seenRefs, etc.)
-    · simp [*] at *
-    · simp [*] at *
-    · simp [*] at *
-    · simp [*] at *
-    · simp [*] at *
-    · grind
-
-    -- Case: j = current, k fresh (self-loop on first element, direct to dest)
-    ·
-      simp [*] at *
-      subst_eqs
-      clear aa bb
-      have := FullWalk.refTwo_self_dest_fst h h_2 shortestWalk segsunique.left.left
-      simp [*] at this
-      grind
-
-    -- Case: j = current, k fresh (self-loop on first element, recurse through k)
-    ·
-      clear aa bb
-      subst_eqs
-      simp [*] at *
-      have := FullWalk.refTwo_self_dest_fst h h_2 shortestWalk segsunique.left.left
-      simp [h_1.left] at this
-      obtain ⟨tailsegs,tailsegsprf,fw⟩ := this
-      subst_eqs
-      simp [*] at *
-      have curr_to_k : Walk ctx current_1 k := by grind
-      have := ih1 (segments:=tailsegs) curr_to_k ?_ fw ?_ ?_ ?_ ?_ ?_
-      · grind
-      · exact fun a a_1 => .indirect (hseenswalk a a_1) curr_to_k
-      · grind
-      · grind
-      · grind
-      · grind
-      · grind
-
-    · simp [*] at *
-
-    -- Case: k = current, j fresh (self-loop on second element)
-    ·
-      simp [*] at *
-      subst_eqs
-      clear aa bb
-      have := FullWalk.refTwo_self_dest_snd h h_1 shortestWalk segsunique.left.left
-      simp [h_2] at this
-      obtain ⟨tailsegs,tailsegsprf,fw⟩ := this
-      grind
-
-    -- Case: Both j and k fresh (neither = current, neither ∈ seenRefs) - both paths lead to dest
-    ·
-      simp [*] at *
-      clear aa bb
-      have curr_to_j : Walk ctx current_1 j := by grind
-      have curr_to_k : Walk ctx current_1 k := by grind
-      have := FullWalk.refTwo_iff_dest_get h shortestWalk
-      cases' this with hjeqdest hh
-      · grind
-      · cases' hh with hkeqdest hh
-        · grind
-        · obtain ⟨tailSegs,hwalk⟩ := hh
-          cases' hwalk with thruj thruk
-          · grind
-          · grind
-
-    -- Case: j fresh, k in seens - contradiction via segments
-    · simp [*] at *
-      have := FullWalk.refTwo_iff_dest_get h shortestWalk
-      cases' this with hjeqdest hh
-      · grind
-      · cases' hh with hkeqdest hh
-        · subst_eqs
-          simp [*] at *
-        · obtain ⟨tailSegs,hwalk⟩ := hh
-          cases' hwalk with thruj thruk
-          · grind
-          · obtain ⟨kneq,hrest⟩ := h_1
-            obtain ⟨hsegeq,k_to_dest⟩ := thruk
-            subst_eqs
-            clear aa bb
-            simp [*] at segsunique
-            absurd hrest
-            simp
-            apply ih1 (segments:=tailSegs) <;> grind
-
-    · grind
-
-    -- Case: k fresh, j in seens - contradiction via segments
-    · simp [*] at *
-      have := FullWalk.refTwo_iff_dest_get h shortestWalk
-      cases' this with hjeqdest hh
-      · grind
-      · cases' hh with hkeqdest hh
-        · subst_eqs
-          simp [*] at *
-        · obtain ⟨tailSegs,hwalk⟩ := hh
-          cases' hwalk with thruj thruk
-          ·
-            obtain ⟨jneq,hrest⟩ := h_2
-            obtain ⟨hsegeq,j_to_dest⟩ := thruj
-            clear aa bb
-            subst_eqs
-            absurd hrest
-            simp
-            apply ih2 (segments:=tailSegs) <;> grind
-          · grind
-
-    -- Case: Both j and k fresh - recurse through j
-    ·
-      simp [*] at *
-      have := FullWalk.refTwo_iff_dest_get h shortestWalk
-      cases' this with hjeqdest hh
-      · grind
-      · cases' hh with hkeqdest hh
-        · subst_eqs
-          simp [*] at *
-        · obtain ⟨tailSegs,hwalk⟩ := hh
-          cases' hwalk with thruj thruk
-          · obtain ⟨jneq,hrest⟩ := h_2
-            obtain ⟨hsegeq,j_to_dest⟩ := thruj
-            subst_eqs
-            clear aa bb
-            simp [*] at segsunique
-            absurd hrest
-            simp
-            apply ih2 (segments:=tailSegs) <;> grind
-          · grind
-
-    -- Case: Both j and k fresh - recurse through either j or k
-    · simp [*] at *
-      have := FullWalk.refTwo_iff_dest_get h shortestWalk
-      cases' this with hjeqdest hh
-      · grind
-      · cases' hh with hkeqdest hh
-        · subst_eqs
-          simp [*] at *
-        · obtain ⟨tailSegs,hwalk⟩ := hh
-          cases' hwalk with thruj thruk
-          ·
-            obtain ⟨kneq,hkrest⟩ := h_1
-            obtain ⟨jneq,hjrest⟩ := h_2
-            obtain ⟨hjsegeq,j_to_dest⟩ := thruj
-            subst_eqs
-            clear aa bb
-            simp [*] at segsunique
-            absurd hjrest
-            simp
-            apply ih2 (segments:=tailSegs) <;> grind
-          ·
-            obtain ⟨kneq,hkrest⟩ := h_1
-            obtain ⟨jneq,hjrest⟩ := h_2
-            obtain ⟨hksegeq,k_to_dest⟩ := thruk
-            subst_eqs
-            clear aa bb
-            simp [*] at segsunique
-            absurd hkrest
-            simp
-            apply ih1 (segments:=tailSegs) <;> grind
-  | case7 => rfl
-  | case8 => rfl
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -2196,52 +1946,69 @@ theorem FullWalk.decideBool_complete
 
 
 /-- The completeness theorem for the case where `seenRefs` is empty -/
-theorem FullWalk.decideBool_fresh_complete_full_walk
-  (shortestWalk : FullWalk ctx current dest segments)
-  (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
-  : Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
-  refine FullWalk.decideBool_complete ?_ shortestWalk ?_ segsunique
+theorem FullWalk.decideBool_fresh_complete_full_walk {current : V}
+  (horigtocurr : Walk graph origin current)
+  (shortestWalk : FullWalk graph origin dest segments)
+  (segsplit : segsprecurr ++ [current] ++ segspostcurr = segments)
+  (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
+  : Walk.decideBool graph origin current dest ∅ = true := by
+  apply shortestWalk.decideBool_complete horigtocurr _ segsplit _ segsunique
   · simp
   · simp
 
 
 
 
-/-- The completeness theorem for the case where `seenRefs` is empty -/
-theorem FullWalk.decideBool_fresh_complete
-  (shortestWalk : FullWalk ctx current dest segments)
-  (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
-  : Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
-  refine FullWalk.decideBool_complete ?_ shortestWalk ?_ segsunique
-  · simp
-  · simp
+
+-- /-- The two-way theorem `↔`, but only for when segments is non-empty. Walk.decideBool is only meant to be used when there is a nonempty segments list. -/
+-- theorem FullWalk.decideBool_fresh_cons_iff {current : V}
+--   -- (hneq : origin ≠ current)
+
+--   (notdirect : ¬DirectRef graph origin dest) -- because if it links directly it's trivial – and then also you don't need to use `Walk.decideBool`
+--   (horigtocurr : Walk graph origin current)
+--   : (∃ segments, FullWalk graph origin dest segments) ↔ Walk.decideBool graph origin current dest ∅ = true := by
+--   constructor
+--   · intro ⟨ segments, walk ⟩
+--     have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
+--     cases hsegs : segs with
+--     | nil =>
+--       subst_eqs
+--       cases uniquewalk with
+--       | indirect _ _ h => simp at h
+--       | direct dref => contradiction
+--     --     -- simp at dref
+--     --     unfold Walk.decideBool
+--     --     simp [*]
+--     --     left
+--     --     have : FullWalk ctx origin dest [] := .direct dref
+--     --     have := this.cons_head_segment rfl
+
+--     | cons head tail =>
+--       have headtodest := uniquewalk.cons_head_segment hsegs
+--       have headdref := uniquewalk.ref_segment_cons hsegs
+--       have := uniquewalk.decideBool_fresh_complete_full_walk (.direct headdref) ?_ hunique (segsprecurr:=[current]) (segspostcurr:=tail)
 
 
 
-/-- The two-way theorem `↔` -/
-theorem FullWalk.decideBool_fresh_iff
-  : (∃ segments, FullWalk ctx current dest segments) ↔ Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
-  constructor
-  · intro ⟨ segments, walk ⟩
-    have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
-    exact uniquewalk.decideBool_fresh_complete_full_walk hunique
-  · intro prem
-    have walk := Walk.decideBool_sound prem
-    exact walk.toFullWalk
+--       sorry
+
+--   · intro prem
+--     have walk := Walk.decideBool_sound horigtocurr prem
+--     refine walk.toFullWalk
 
 
 
 
-theorem Walk.decideBool_fresh_iff
-  : Walk ctx current dest ↔ Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
-  constructor
-  · intro walk
-    have ⟨ segments, walk ⟩ := walk.toFullWalk
-    have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
-    exact uniquewalk.decideBool_fresh_complete_full_walk hunique
-  · intro prem
-    have walk := Walk.decideBool_sound prem
-    exact walk
+-- theorem Walk.decideBool_fresh_iff
+--   : Walk ctx current dest ↔ Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
+--   constructor
+--   · intro walk
+--     have ⟨ segments, walk ⟩ := walk.toFullWalk
+--     have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
+--     exact uniquewalk.decideBool_fresh_complete_full_walk hunique
+--   · intro prem
+--     have walk := Walk.decideBool_sound prem
+--     exact walk
 
 
 
@@ -2250,17 +2017,384 @@ theorem Walk.decideBool_fresh_iff
 
 
 /-- !!!!!!!!! -/
-instance Walk.decide
-  (ctx : Ctx)
-  (origin : Nat)
-  (dest : Nat)
+instance Walk.decide [Fintype V]
+  (graph : Graph)
+  (origin : V)
+  (dest : V)
 
-  (horigLt : origin < ctx.length)
-  (ctxLt : ∀ lor ∈ ctx, ∀ i ∈ lor, i < ctx.length)
-  : Decidable (Walk ctx origin dest)
+  -- (horigLt : origin < ctx.length)
+  -- (ctxLt : ∀ lor ∈ ctx, ∀ i ∈ lor, i < ctx.length)
+  : Decidable (Walk graph origin dest)
   := by
-  refine decidable_of_bool (Walk.decideBool ctx origin dest horigLt ctxLt ∅ (by simp) (by simp)) ?_
-  refine Iff.symm Walk.decideBool_fresh_iff
+  if hempty : graph origin = ∅ then
+    refine .isFalse ?_
+    exact leaf_no_walk hempty
+  else
+    by_cases hdirect : dest ∈ graph origin
+    · refine .isTrue ?_
+      refine .direct hdirect
+    ·
+      -- let childNodes := graph origin
+      let result := (graph origin).image (λ child ↦ decideBool graph origin child dest ∅)
+
+      if hresult : true ∈ result then
+        refine .isTrue ?_
+        simp [result] at hresult
+        obtain ⟨child, childin,prf⟩ := hresult
+        exact Walk.decideBool_sound (.direct childin) prf
+
+      else
+        simp [result] at hresult
+        refine .isFalse ?_
+        intro contra
+        have ⟨ segs, fw ⟩ := contra.toFullWalk
+        have ⟨ segs, nodup, fw ⟩ := fw.exists_non_dup
+
+        cases segs with
+        | nil =>
+          cases fw with
+          | direct h =>
+            absurd h
+            exact hdirect
+          | indirect _ _ h => simp at h
+        | cons head tail =>
+          have dref := fw.ref_segment_cons rfl
+          have dec := hresult head dref
+          -- have fw' := fw.cons_head_segment rfl
+          absurd dec
+          simp
+          refine fw.decideBool_complete (seenRefs:=∅) (segsprecurr:=[]) (segspostcurr:=tail) (.direct dref) (by simp) (current:=head) (by simp) (by simp) ?_
+          grind
+          -- grind
+          -- have := hresult dest
+        -- cases fw with
+        -- | direct => grind
+        -- | indirect
+
+
+
+  -- refine decidable_of_bool (Walk.decideBool graph origin dest horigLt ctxLt ∅ (by simp) (by simp)) ?_
+  -- refine Iff.symm Walk.decideBool_fresh_iff
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- set_option maxHeartbeats 800_000 in
+-- /-- The completeness theorem for the recursive case where `seenRefs` is non-empty -/
+-- @[grind →]
+-- theorem FullWalk.decideBool_complete
+--   (hseenswalk : ∀ seen ∈ seenRefs, Walk ctx seen current)
+--   (shortestWalk : FullWalk ctx current dest segments)
+--   (noOverlap : ∀ seen ∈ seenRefs, seen ∉ segments)
+--   (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
+--   : Walk.decideBool ctx current dest hCurrLt ctxLt seenRefs seenLt currninseen = true := by
+--   fun_induction Walk.decideBool ctx current dest hCurrLt ctxLt seenRefs seenLt currninseen
+--     generalizing segments
+--   with
+--   | case1 => grind
+--   | case2 => rfl
+--   | case3 => grind
+--   | case4 =>
+--     expose_names
+--     have := FullWalk.ref_iff_dest shortestWalk h
+--     simp [*] at this
+--     grind
+
+--   | case5 =>
+--     expose_names
+--     have curr_to_j : Walk ctx current_1 j := by grind
+--     have := FullWalk.ref_iff_dest shortestWalk h
+--     simp [*] at this
+--     obtain ⟨segTail,segsprf,fw⟩ := this
+
+--     apply ih1 (segments:=segTail) _ fw
+--     · simp at segsunique
+--       grind
+--     · simp [*]
+--       grind
+--     · simp
+--       grind
+
+--   | case6 =>
+--     expose_names
+--     unfold aa at *
+--     unfold bb at *
+
+--     -- Split into 16 branches based on whether j,k equal current or are in seenRefs
+--     by_cases hjeqcurr : j = current_1 <;>
+--     by_cases hjinseens : j ∈ seenRefs_1 <;>
+--     by_cases hkeqcurr : k = current_1 <;>
+--     by_cases hkinseens : k ∈ seenRefs_1
+
+--     -- Trivial contradiction cases (elements in seenRefs, etc.)
+--     · simp [*] at *
+--     · simp [*] at *
+--     · simp [*] at *
+--     · simp [*] at *
+--     · simp [*] at *
+--     · grind
+
+--     -- Case: j = current, k fresh (self-loop on first element, direct to dest)
+--     ·
+--       simp [*] at *
+--       subst_eqs
+--       clear aa bb
+--       have := FullWalk.refTwo_self_dest_fst h h_2 shortestWalk segsunique.left.left
+--       simp [*] at this
+--       grind
+
+--     -- Case: j = current, k fresh (self-loop on first element, recurse through k)
+--     ·
+--       clear aa bb
+--       subst_eqs
+--       simp [*] at *
+--       have := FullWalk.refTwo_self_dest_fst h h_2 shortestWalk segsunique.left.left
+--       simp [h_1.left] at this
+--       obtain ⟨tailsegs,tailsegsprf,fw⟩ := this
+--       subst_eqs
+--       simp [*] at *
+--       have curr_to_k : Walk ctx current_1 k := by grind
+--       have := ih1 (segments:=tailsegs) curr_to_k ?_ fw ?_ ?_ ?_ ?_ ?_
+--       · grind
+--       · exact fun a a_1 => .indirect (hseenswalk a a_1) curr_to_k
+--       · grind
+--       · grind
+--       · grind
+--       · grind
+--       · grind
+
+--     · simp [*] at *
+
+--     -- Case: k = current, j fresh (self-loop on second element)
+--     ·
+--       simp [*] at *
+--       subst_eqs
+--       clear aa bb
+--       have := FullWalk.refTwo_self_dest_snd h h_1 shortestWalk segsunique.left.left
+--       simp [h_2] at this
+--       obtain ⟨tailsegs,tailsegsprf,fw⟩ := this
+--       grind
+
+--     -- Case: Both j and k fresh (neither = current, neither ∈ seenRefs) - both paths lead to dest
+--     ·
+--       simp [*] at *
+--       clear aa bb
+--       have curr_to_j : Walk ctx current_1 j := by grind
+--       have curr_to_k : Walk ctx current_1 k := by grind
+--       have := FullWalk.refTwo_iff_dest_get h shortestWalk
+--       cases' this with hjeqdest hh
+--       · grind
+--       · cases' hh with hkeqdest hh
+--         · grind
+--         · obtain ⟨tailSegs,hwalk⟩ := hh
+--           cases' hwalk with thruj thruk
+--           · grind
+--           · grind
+
+--     -- Case: j fresh, k in seens - contradiction via segments
+--     · simp [*] at *
+--       have := FullWalk.refTwo_iff_dest_get h shortestWalk
+--       cases' this with hjeqdest hh
+--       · grind
+--       · cases' hh with hkeqdest hh
+--         · subst_eqs
+--           simp [*] at *
+--         · obtain ⟨tailSegs,hwalk⟩ := hh
+--           cases' hwalk with thruj thruk
+--           · grind
+--           · obtain ⟨kneq,hrest⟩ := h_1
+--             obtain ⟨hsegeq,k_to_dest⟩ := thruk
+--             subst_eqs
+--             clear aa bb
+--             simp [*] at segsunique
+--             absurd hrest
+--             simp
+--             apply ih1 (segments:=tailSegs) <;> grind
+
+--     · grind
+
+--     -- Case: k fresh, j in seens - contradiction via segments
+--     · simp [*] at *
+--       have := FullWalk.refTwo_iff_dest_get h shortestWalk
+--       cases' this with hjeqdest hh
+--       · grind
+--       · cases' hh with hkeqdest hh
+--         · subst_eqs
+--           simp [*] at *
+--         · obtain ⟨tailSegs,hwalk⟩ := hh
+--           cases' hwalk with thruj thruk
+--           ·
+--             obtain ⟨jneq,hrest⟩ := h_2
+--             obtain ⟨hsegeq,j_to_dest⟩ := thruj
+--             clear aa bb
+--             subst_eqs
+--             absurd hrest
+--             simp
+--             apply ih2 (segments:=tailSegs) <;> grind
+--           · grind
+
+--     -- Case: Both j and k fresh - recurse through j
+--     ·
+--       simp [*] at *
+--       have := FullWalk.refTwo_iff_dest_get h shortestWalk
+--       cases' this with hjeqdest hh
+--       · grind
+--       · cases' hh with hkeqdest hh
+--         · subst_eqs
+--           simp [*] at *
+--         · obtain ⟨tailSegs,hwalk⟩ := hh
+--           cases' hwalk with thruj thruk
+--           · obtain ⟨jneq,hrest⟩ := h_2
+--             obtain ⟨hsegeq,j_to_dest⟩ := thruj
+--             subst_eqs
+--             clear aa bb
+--             simp [*] at segsunique
+--             absurd hrest
+--             simp
+--             apply ih2 (segments:=tailSegs) <;> grind
+--           · grind
+
+--     -- Case: Both j and k fresh - recurse through either j or k
+--     · simp [*] at *
+--       have := FullWalk.refTwo_iff_dest_get h shortestWalk
+--       cases' this with hjeqdest hh
+--       · grind
+--       · cases' hh with hkeqdest hh
+--         · subst_eqs
+--           simp [*] at *
+--         · obtain ⟨tailSegs,hwalk⟩ := hh
+--           cases' hwalk with thruj thruk
+--           ·
+--             obtain ⟨kneq,hkrest⟩ := h_1
+--             obtain ⟨jneq,hjrest⟩ := h_2
+--             obtain ⟨hjsegeq,j_to_dest⟩ := thruj
+--             subst_eqs
+--             clear aa bb
+--             simp [*] at segsunique
+--             absurd hjrest
+--             simp
+--             apply ih2 (segments:=tailSegs) <;> grind
+--           ·
+--             obtain ⟨kneq,hkrest⟩ := h_1
+--             obtain ⟨jneq,hjrest⟩ := h_2
+--             obtain ⟨hksegeq,k_to_dest⟩ := thruk
+--             subst_eqs
+--             clear aa bb
+--             simp [*] at segsunique
+--             absurd hkrest
+--             simp
+--             apply ih1 (segments:=tailSegs) <;> grind
+--   | case7 => rfl
+--   | case8 => rfl
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- /-- The completeness theorem for the case where `seenRefs` is empty -/
+-- theorem FullWalk.decideBool_fresh_complete_full_walk
+--   (shortestWalk : FullWalk ctx current dest segments)
+--   (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
+--   : Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
+--   refine FullWalk.decideBool_complete ?_ shortestWalk ?_ segsunique
+--   · simp
+--   · simp
+
+
+
+
+-- /-- The completeness theorem for the case where `seenRefs` is empty -/
+-- theorem FullWalk.decideBool_fresh_complete
+--   (shortestWalk : FullWalk ctx current dest segments)
+--   (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
+--   : Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
+--   refine FullWalk.decideBool_complete ?_ shortestWalk ?_ segsunique
+--   · simp
+--   · simp
+
+
+
+-- /-- The two-way theorem `↔` -/
+-- theorem FullWalk.decideBool_fresh_iff
+--   : (∃ segments, FullWalk ctx current dest segments) ↔ Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
+--   constructor
+--   · intro ⟨ segments, walk ⟩
+--     have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
+--     exact uniquewalk.decideBool_fresh_complete_full_walk hunique
+--   · intro prem
+--     have walk := Walk.decideBool_sound prem
+--     exact walk.toFullWalk
+
+
+
+
+-- theorem Walk.decideBool_fresh_iff
+--   : Walk ctx current dest ↔ Walk.decideBool ctx current dest hCurrLt ctxLt ∅ seenLt currninseen = true := by
+--   constructor
+--   · intro walk
+--     have ⟨ segments, walk ⟩ := walk.toFullWalk
+--     have ⟨ segs, hunique, uniquewalk ⟩ := FullWalk.exists_non_dup walk
+--     exact uniquewalk.decideBool_fresh_complete_full_walk hunique
+--   · intro prem
+--     have walk := Walk.decideBool_sound prem
+--     exact walk
+
+
+
+
+
+
+
+-- /-- !!!!!!!!! -/
+-- instance Walk.decide
+--   (ctx : Ctx)
+--   (origin : Nat)
+--   (dest : Nat)
+
+--   (horigLt : origin < ctx.length)
+--   (ctxLt : ∀ lor ∈ ctx, ∀ i ∈ lor, i < ctx.length)
+--   : Decidable (Walk ctx origin dest)
+--   := by
+--   refine decidable_of_bool (Walk.decideBool ctx origin dest horigLt ctxLt ∅ (by simp) (by simp)) ?_
+--   refine Iff.symm Walk.decideBool_fresh_iff
 
 
 
@@ -2274,13 +2408,10 @@ instance Walk.decide
 
 
 @[simp,reducible,grind]
-def HasCycle ctx i := Walk ctx i i
+def HasCycle ctx (i : V) := Walk ctx i i
 
 
 
-instance HasCycle.decide
-  (ctx : Ctx) (i : Nat)
-  (ilt : i < ctx.length)
-  (ctxLt : ∀ lor ∈ ctx, ∀ i ∈ lor, i < ctx.length)
-  : Decidable (HasCycle ctx i) :=
-  Walk.decide ctx i i ilt ctxLt
+instance HasCycle.decide (ctx : Graph) (i : V) :
+  Decidable (HasCycle ctx i) :=
+    Walk.decide ctx i i
