@@ -182,23 +182,6 @@ section Walk
 
 
 
-
-
--- /-- The proposition that the `lor` *directly* references `dest`, in one of the three ways it can do so -/
--- @[grind]
--- inductive DirectRef (ctx : Ctx) : (lor : LeafOrRef) → (dest : Nat) → Prop
---   | single :
---     DirectRef ctx (.ref dest) dest
-
---   | fst :
---     DirectRef ctx (.refTwo dest _other) dest
-
---   | snd :
---     DirectRef ctx (.refTwo _other dest) dest
--- omit Mathlib.Combinatorics.Data.Basic.Graph in
-
-
-
 /-- Node `v` directly references node `u`. Because `u` is in the set of nodes that `v` connects to. -/
 @[reducible, simp]
 def DirectRef (graph : Graph) (v : V) (u : V) := u ∈ graph v
@@ -1095,7 +1078,6 @@ def Walk.getReachables [Fintype V]
   (graph : Graph (V:=V))
   (current : V)
   (seenRefs : Finset V) :
-  -- (seenRefs : List V) :
   Finset V :=
   if _hin : current ∈ seenRefs then
     seenRefs
@@ -1118,9 +1100,7 @@ theorem FullWalk.getReachables_complete
   (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
   (shortestWalk : FullWalk graph current dest segments)
   (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: segments)
-  -- (noOverlap : ∀ seen ∈ seenRefs, seen ∉ dest :: segments ∧ seen ≠ current ∨ dest = current)
   (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
-  -- (segsunique : (current :: dest :: segments).Nodup)
   : dest ∈ Walk.getReachables graph current seenRefs := by
   fun_induction Walk.getReachables graph current seenRefs
     generalizing segments dest
@@ -1168,8 +1148,8 @@ def Walk.decideBool [Fintype V]
     if _hin : current ∈ seenRefs then
       false
     else
-      let result := (graph current).image (λ child ↦ (child, decideBool graph origin child dest (insert current seenRefs)))
-      result.filter (λ (_child, res) ↦ res = true) ≠ ∅
+      let result := (graph current).image (λ child ↦ decideBool graph origin child dest (insert current seenRefs))
+      result.filter (· = true) ≠ ∅
 
   termination_by (Fintype.card V - seenRefs.card)
   decreasing_by
@@ -1191,7 +1171,6 @@ omit [Fintype V] in
 @[grind →]
 theorem Walk.decideBool_sound [Fintype V] {current : V}
   (horigtocurr : Walk graph origin current)
-  -- (hseenstocurr : ∀ seen ∈ seenRefs, Walk graph seen current)
   (h : Walk.decideBool graph origin current dest seenRefs = true)
   : Walk graph origin dest := by
   fun_induction Walk.decideBool graph origin current dest seenRefs with
