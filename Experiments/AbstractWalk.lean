@@ -1334,7 +1334,11 @@ theorem FullWalk.get_dest_nin_segs
 
 
 
-
+/-- Split at any middle section -/
+theorem FullWalk.split_by_segs
+  (h : FullWalk ctx origin dest segments)
+  (hsegs : segments = segs₁ ++ [middle] ++ segs₂)
+  : FullWalk ctx origin middle segs₁ ∧ FullWalk ctx middle dest segs₂ := by sorry
 
 
 
@@ -1516,9 +1520,10 @@ def Walk.getReachables [Fintype V]
   (graph : Graph (V:=V))
   (current : V)
   (seenRefs : Finset V) :
+  -- (seenRefs : List V) :
   Finset V :=
   if _hin : current ∈ seenRefs then
-    {current}
+    seenRefs
   else
     let nodes := graph current
     nodes.biUnion (λ node ↦ insert node (getReachables graph node (insert current seenRefs)))
@@ -1537,10 +1542,10 @@ theorem FullWalk.getReachables_complete
   {current : V}
   (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
   (shortestWalk : FullWalk graph current dest segments)
-  (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: dest :: segments)
+  (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: segments)
   -- (noOverlap : ∀ seen ∈ seenRefs, seen ∉ dest :: segments ∧ seen ≠ current ∨ dest = current)
-  -- (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
-  (segsunique : (current :: dest :: segments).Nodup)
+  (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
+  -- (segsunique : (current :: dest :: segments).Nodup)
   : dest ∈ Walk.getReachables graph current seenRefs := by
   fun_induction Walk.getReachables graph current seenRefs
     generalizing segments dest
@@ -1548,7 +1553,7 @@ theorem FullWalk.getReachables_complete
   | case1 current seenRefs hin => simpa using noOverlap _ hin
   | @case2 current seenRefs ninseen nodes ih =>
     simp at noOverlap
-    have : dest ∉ seenRefs := by grind
+    -- have : dest ∉ seenRefs := by grind
     simp [*]
     cases shortestWalk using FullWalk.cons_induction with
     | direct dref =>
@@ -1568,104 +1573,105 @@ theorem FullWalk.getReachables_complete
           refine .indirect ?_ (.direct dref)
           refine hseenswalk _ seenin
       · simp [*]
-        intro seen seenin
-        simp [*]
         grind
 
 
 
+-- lemma FullWalk.getReachables_self_in_seens {current : V}
+--  (walk : FullWalk graph current dest segments) :
+--   (current ∈ Walk.getReachables graph dest (insert current seenRefs)) ↔ (current ∈ Walk.getReachables graph dest seenRefs) := by
+--   constructor
+--   ·
+--     fun_induction Walk.getReachables graph current seenRefs generalizing segments with
+--     | case1 current seenRefs currin =>
+--       expose_names
+--       simp [*]
+--     | @case2 current seenRefs currin nodes ih =>
+--       intro prem
 
-lemma FullWalk.getReachables_self_in_seens {current : V}
- (walk : FullWalk graph current dest segments) :
-  (current ∈ Walk.getReachables graph dest (insert current seenRefs)) ↔ (current ∈ Walk.getReachables graph dest seenRefs) := by
-  constructor
-  ·
-    fun_induction Walk.getReachables graph current seenRefs generalizing segments with
-    | case1 current seenRefs currin =>
-      expose_names
-      simp [*]
-    | @case2 current seenRefs currin nodes ih =>
-      intro prem
+--       cases walk using FullWalk.cons_induction with
+--       | direct dref =>
+--         unfold Walk.getReachables
+--         simp [*]
+--         split
+--         · simp [*]
+--         · simp at dref ⊢
 
-      cases walk using FullWalk.cons_induction with
-      | direct dref =>
-        unfold Walk.getReachables
-        simp [*]
-        split
-        · simp [*]
-        · simp at dref ⊢
+--           exists current,dref
+--       | cons dref walk ih =>
+--         clear ih
+--         expose_names
 
-          exists current,dref
-      | cons dref walk ih =>
-        clear ih
-        expose_names
-
-        exists head,dref
-        have := ih head
-        simp
-  · sorry
-
+--         exists head,dref
+--         have := ih head
+--         simp
+--   · sorry
 
 
 
 
 
-theorem FullWalk.getReachables_complete_curr_eq_dest
-  {current : V}
-  (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
-  (shortestWalk : FullWalk graph current dest segments)
-  (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: dest :: segments)
-  -- (noOverlap : ∀ seen ∈ seenRefs, seen ∉ dest :: segments ∧ seen ≠ current ∨ dest = current)
-  (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
-  -- (segsunique : (current :: dest :: segments).Nodup)
-  : dest ∈ Walk.getReachables graph current seenRefs := by
-  by_cases heq : current = dest
-  · subst_eqs
-    simp at *
-    cases shortestWalk using FullWalk.cons_induction with
-    | direct dref =>
-      simp at *
-      unfold Walk.getReachables
-      simp [*]
-      exists dest,dref
-      simp
-    | cons dref htail ih =>
-      expose_names
-      -- clear ih
-      simp [*] at *
-      have := htail.getReachables_complete (seenRefs:=seenRefs) ?_ ?_ ?_
-      unfold Walk.getReachables
-      simp
-      by_cases destseens : dest ∈ seenRefs
-      · simp [*]
-      · simp [*]
-        exists head,dref
-        simp [*]
+
+-- theorem FullWalk.getReachables_complete_curr_eq_dest
+--   {current : V}
+--   (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
+--   (shortestWalk : FullWalk graph current dest segments)
+--   (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: dest :: segments)
+--   -- (noOverlap : ∀ seen ∈ seenRefs, seen ∉ dest :: segments ∧ seen ≠ current ∨ dest = current)
+--   (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
+--   -- (segsunique : (current :: dest :: segments).Nodup)
+--   : dest ∈ Walk.getReachables graph current seenRefs := by
+--   by_cases heq : current = dest
+--   · subst_eqs
+--     simp at *
+--     cases shortestWalk using FullWalk.cons_induction with
+--     | direct dref =>
+--       simp at *
+--       unfold Walk.getReachables
+--       simp [*]
+--       exists dest,dref
+--       simp
+--     | cons dref htail ih =>
+--       expose_names
+--       -- clear ih
+--       simp [*] at *
+--       have := htail.getReachables_complete (seenRefs:=seenRefs) ?_ ?_ ?_
+--       unfold Walk.getReachables
+--       simp
+--       by_cases destseens : dest ∈ seenRefs
+--       · simp [*]
+--       · simp [*]
+
+--         exists head,dref
+--         simp [*]
 
 
 
-  · refine shortestWalk.getReachables_complete hseenswalk ?_ ?_
-    · simp [*]
-      intro seen seenin
-      have := noOverlap _ seenin
-      simp at this
-      simp [*]
-    · grind
+
+--   · refine shortestWalk.getReachables_complete hseenswalk ?_ ?_
+--     · simp [*]
+--       intro seen seenin
+--       have := noOverlap _ seenin
+--       simp at this
+--       simp [*]
+--     · grind
 
 
 
 /-- That if it returns `true` we can produce a `Walk` from `current` to `dest` -/
 @[grind →]
-theorem FullWalk.getReachables_sound {current : V}
+theorem Walk.getReachables_sound {current : V}
   (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
   (h : dest ∈ Walk.getReachables graph current seenRefs)
   : Walk graph current dest := by
   fun_induction Walk.getReachables graph current seenRefs generalizing dest with
   | case1 =>
     expose_names
-    simp at h ⊢
-    subst_eqs
-    exact hseenswalk _ h_1
+
+    -- There's a loop so we should be able to get from either to either
+
+    have := hseenswalk _ h
+    have := hseenswalk _ h_1
 
   | @case2 current seenRefs currin nodes ih =>
     simp at h
@@ -1790,181 +1796,170 @@ theorem Walk.decideBool_fresh_iff
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 /-- Bool-valued implementation of decidable function for walks -/
-def Walk.decideBool
+def Walk.decideBool [Fintype V]
   (graph : Graph (V:=V))
 
-  (current : V)
-  (dest : V)
+  (origin : V) -- not in seens
+  (current : V) -- is not `origin`
+  (dest : V) -- not in seens
 
-  -- (hCurrLt : current < ctx.length)
-  -- (ctxLt : ∀ lor ∈ ctx, ∀ i ∈ lor, i < ctx.length)
-
-  (seenRefs : Finset V)
-  -- (seenLt : ∀ seen ∈ seenRefs, seen < ctx.length)
-
-  (currninseens : current ∉ seenRefs) :
+  (seenRefs : Finset V) :
   Bool :=
-  -- by
-
-  -- match graph current with
-  -- | .mk
-  -- Std.HashSet.o
-  let nodes := graph current
-  if hempty : nodes = ∅ then
-    false
+  if _heq : current = dest then
+    true
   else
-    let min := nodes.min' (Finset.nonempty_iff_ne_empty.mpr hempty)
-
-    if hdest : min = dest then
-      true
+    if _hin : current ∈ seenRefs then
+      false
     else
-      if heqcurr : min = current then
-        false
-      else
-      let minResult :=
-          if hin : min ∈ seenRefs then
-            false
-          else
-            have : min ∉ insert current seenRefs := by simp [*]
-            decideBool graph min dest (insert current seenRefs) this
-
-      if hnmin : minResult then
-        true
-        -- have : min ∉ insert current seenRefs := by simp [*]
+      let result := (graph current).image (λ child ↦ (child, decideBool graph origin child dest (insert current seenRefs)))
+      result.filter (λ (_child, res) ↦ res = true) ≠ ∅
 
 
-      else
-        have : current ∉ insert min seenRefs := by
-          simp [*]
+      -- let result : Finset Bool := (graph current).image (λ child ↦ decideBool graph origin child dest (insert current seenRefs))
+      -- true ∈ result
 
-          sorry
-        decideBool graph current dest (insert min seenRefs) this
-      -- let minResult :=
-      --   if heqcurr : min = current then
-      --     false
-      --   else
-      --     if hin : min ∈ seenRefs then
-      --       false
-      --     else
-      --       have : min ∉ insert current seenRefs := by simp [*]
-      --       decideBool graph min dest (insert current seenRefs) this
-
-      -- if hnmin : minResult then
-      --   true
-      --   -- have : min ∉ insert current seenRefs := by simp [*]
-
-
-      -- else
-      --   have : current ∉ insert min seenRefs := by
-      --     simp [*]
-
-      --     sorry
-      --   decideBool graph current dest (insert min seenRefs) this
+  termination_by (Fintype.card V - seenRefs.card)
+  decreasing_by
+    simp [*]
+    apply Nat.sub_lt_sub_left
+    · apply Finset.card_lt_univ_of_notMem _hin
+    · simp
 
 
 
 
 
-  -- match hitem : graph current with
-  -- | .empty => false
-
-  -- | .insert i =>
-  --   if hdest : i = dest then
-  --     true
-  --   else
-  --     if heqcurr : i = current then
-  --       false
-  --     else
-
-  --       -- Proof of decreasing measure
-  --       have term : ctx.length - (insert current seenRefs).card < ctx.length - seenRefs.card := by grind
-
-  --       have iltn : i < ctx.length := ctxLt ctx[current] (List.getElem_mem hCurrLt) _ (LeafOrRef.ref_is_in hitem)
-
-  --       have newSeenLt : ∀ seen ∈ insert current seenRefs, seen < ctx.length := by
-  --         simp
-  --         exact And.symm ⟨seenLt, hCurrLt⟩
-
-  --       if hin : i ∈ seenRefs then
-  --         false
-  --       else
-  --         have : i ∉ insert current seenRefs := by simp [*]
-  --         decideBool ctx i dest iltn ctxLt (insert current seenRefs) newSeenLt this
-
-  -- | .refTwo a b =>
-  --   -- Proof of decreasing measure
-  --   have term : ctx.length - (insert current seenRefs).card < ctx.length - seenRefs.card := by simp [*]; grind
-
-  --   have newSeenLt : ∀ seen ∈ insert current seenRefs, seen < ctx.length := by grind
-
-  --   have altn : a < ctx.length :=
-  --     ctxLt ctx[current] (ctx.getElem_mem _) _ (LeafOrRef.refTwo_is_in_fst hitem)
-  --   have bltn : b < ctx.length :=
-  --     ctxLt ctx[current] (ctx.getElem_mem _) _ (LeafOrRef.refTwo_is_in_snd hitem)
-
-  --   let aa :=
-  --     if hdest : a = dest then
-  --       true
-  --     else
-  --       if heq : a = current then
-  --         false
-  --       else
-  --         if hin : a ∈ seenRefs then
-  --           false
-  --         else
-  --           have : a ∉ insert current seenRefs := by simp [*]
-  --           decideBool ctx a dest altn ctxLt (insert current seenRefs) newSeenLt this
-
-
-
-  --   let bb :=
-  --     if hdest : b = dest then
-  --       true
-  --     else
-  --       if heq : b = current then
-  --         false
-  --       else
-  --         if hin : b ∈ seenRefs then
-  --           false
-  --         else
-  --           have : b ∉ insert current seenRefs := by simp [*]
-  --           decideBool ctx b dest bltn ctxLt (insert current seenRefs) newSeenLt this
-
-
-  --   match aa, bb with
-  --   | false, false => false
-
-  --   | true, _
-  --   | _, true => true
-
-
-  termination_by (ctx.length - seenRefs.card)
 
 
 
 
-
+omit [Fintype V] in
 /-- That if it returns `true` we can produce a `Walk` from `current` to `dest` -/
 @[grind →]
-theorem Walk.decideBool_sound
-  (h : Walk.decideBool ctx current dest hCurrLt ctxLt seenRefs seenLt currninseen = true)
-  : Walk ctx current dest := by
-  fun_induction Walk.decideBool ctx current dest hCurrLt ctxLt seenRefs seenLt currninseen with
-  | _ => grind
+theorem Walk.decideBool_sound [Fintype V] {current : V}
+  (horigtocurr : Walk graph origin current)
+  -- (hseenstocurr : ∀ seen ∈ seenRefs, Walk graph seen current)
+  (h : Walk.decideBool graph origin current dest seenRefs = true)
+  : Walk graph origin dest := by
+  fun_induction Walk.decideBool graph origin current dest seenRefs with
+  | case1 seenRefs => exact horigtocurr
+  | case2 => contradiction
+  | case3 current seenRefs hneq hcurrninseen result ih =>
+    simp [result] at h ih
+    obtain ⟨child,dref, prf⟩ := h
+    exact ih child (.indirect horigtocurr (.direct dref)) prf
+
+
+
+
+
+
+
+-- def List.split := List.splitAt
+
+
+theorem FullWalk.decideBool_complete {current : V}
+  (horigtocurr : Walk graph origin current)
+  (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
+  (shortestWalk : FullWalk graph origin dest segments)
+  -- (noOverlap : ∀ seen ∈ seenRefs, seen ∉ segments)
+  -- (noOverlap : ∀ seenindex, (_ : seenindex < seenRefs.length) → seenRefs.drop (seenindex))
+  -- (currindexltsegs : currIndex < segments.length)
+  -- (segsplit : (segsprecurr,current :: segswithcurr) = segments.splitAt currIndex)
+  (segsplit : segsprecurr ++ [current] ++ segspostcurr = segments)
+  (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: segspostcurr)
+  -- (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup ∧ (current :: segments).Nodup)
+  (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
+  -- (currinsegs : current ∈ segments)
+  : Walk.decideBool graph origin current dest seenRefs = true := by
+  have currinsegs : current ∈ segments := by grind -- derivable from segsplit
+
+  fun_induction Walk.decideBool graph origin current dest seenRefs
+    generalizing segments segsprecurr segspostcurr
+  with
+  | case1 => rfl
+  | case2 current seenRefs hneqdest currninseen =>
+    have := noOverlap current currninseen
+    simp at this
+
+  | @case3 current seenRefs currneqdest currninseen result ih =>
+
+
+    simp [result, *] at segsunique ⊢
+    obtain ⟨⟨orignseg,segnodup⟩,⟨destninseg,a⟩⟩ := segsunique
+    clear a
+
+    -- have ⟨currsegindex,indexlt,prf⟩ := segments.mem_iff_getElem.mp currinsegs
+    -- have currtodest := shortestWalk.from_seg_to_end segsprecurr.length (by grind)
+    have ⟨origtocurr,currtodest⟩ := shortestWalk.split_by_segs (Eq.symm segsplit)
+    -- simp [*] at currtodest
+
+    cases hl : segspostcurr with
+    | nil =>
+      rw [hl] at currtodest
+      cases currtodest with
+      | indirect _ _ hh => simp at hh
+      | direct dref =>
+        exists dest,dref
+        unfold Walk.decideBool
+        simp
+    | cons head tail =>
+      rw [hl] at currtodest
+      exists head, ref_segment_cons currtodest rfl
+      -- have origtohead : Walk graph origin head := by grind
+      have drefcurrtohead := currtodest.ref_segment_cons rfl
+      -- simp [*] at ih
+      have walkcurrtohead := Walk.direct drefcurrtohead
+
+      apply ih head _ _ shortestWalk (segsprecurr:=segsprecurr++[current]) (segspostcurr:= tail) (by grind) _ (by grind) (by grind)
+      · refine .indirect horigtocurr walkcurrtohead
+      · simp
+        constructor
+        · exact walkcurrtohead
+        · intro seen seenin
+          refine .indirect ?_ walkcurrtohead
+          exact hseenswalk seen seenin
+      · intro seen seenin
+        simp at seenin
+        rcases seenin with seencurr | seenin
+        · rw [seencurr]
+          rw [← segsplit, hl] at segnodup
+          simp at segnodup
+          grind
+        · grind
+
+
+
+
+      -- apply ih head origtohead ?_ shortestWalk ?_ (by grind) ?_
+      -- · simp
+      --   constructor
+      --   · refine .direct drefcurrtohead
+      --   · intro seen seenin
+      --     refine .indirect ?_ (.direct drefcurrtohead)
+      --     exact hseenswalk seen seenin
+      -- · simp
+      --   constructor
+      --   ·
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
