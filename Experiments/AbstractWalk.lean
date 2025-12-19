@@ -51,9 +51,9 @@ inductive LeafOrRef
       simpa using hh
 
 
-@[simp,grind] theorem LeafOrRef.not_in : ¬i ∈ LeafOrRef.leaf := by simp
+@[simp,grind .] theorem LeafOrRef.not_in : ¬i ∈ LeafOrRef.leaf := by simp
 
-@[simp,grind] theorem LeafOrRef.in_is_ref {item : LeafOrRef} (h : i ∈ item) : item = .ref i ∨ ∃ j, item = .refTwo i j ∨ item = .refTwo j i := by
+@[simp,grind →] theorem LeafOrRef.in_is_ref {item : LeafOrRef} (h : i ∈ item) : item = .ref i ∨ ∃ j, item = .refTwo i j ∨ item = .refTwo j i := by
   cases item
   · simp at h
   · simp at h
@@ -223,7 +223,7 @@ inductive Walk (graph : Graph) : (origin dest : V) → Prop
 
 
 /-- If a thing only has a single ref and that ref is back to itself, it cannot lead to anywhere else -/
-@[grind]
+@[grind =>]
 theorem Walk.selfRef_nwalk_elsewhere {graph : Graph} (h : graph current = {current}) : ∀ dest ≠ current, ¬Walk graph current dest := by
   intro dest destneq walk
   induction walk with
@@ -1339,7 +1339,17 @@ theorem FullWalk.split_by_segs
   (h : FullWalk ctx origin dest segments)
   (hsegs : segments = segs₁ ++ [middle] ++ segs₂)
   : FullWalk ctx origin middle segs₁ ∧ FullWalk ctx middle dest segs₂ := by
-  sorry
+  have hindexblt : segs₁.length < segments.length := by simp [hsegs]
+  have hmid : segments[segs₁.length] = middle := by simp [hsegs]
+  have htake : segments.take segs₁.length = segs₁ := by simp [hsegs]
+  have hdrop : segments.drop (segs₁.length + 1) = segs₂ := by simp [hsegs]
+  constructor
+  · have := h.from_start_to_seg segs₁.length hindexblt
+    simp [hmid, htake] at this
+    exact this
+  · have := h.from_seg_to_end segs₁.length hindexblt
+    simp [hmid, hdrop] at this
+    exact this
 
 
 
