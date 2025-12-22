@@ -10,90 +10,6 @@ def List.dropEnd (l : List α) (n : Nat) := l.reverse.drop n |>.reverse
 @[simp high]
 theorem List.dropEnd_dropEnd {l : List α} : (l.dropEnd i).dropEnd j = l.dropEnd (i+j) := by simp
 
-end List
-
-
-
-
-inductive LeafOrRef
-  | leaf : LeafOrRef
-  | ref : Nat → LeafOrRef
-  | refTwo : Nat → Nat → LeafOrRef
-  deriving DecidableEq, BEq
-
-@[simp,grind] instance instMembershipNatLeafOrRef : Membership Nat LeafOrRef where
-  mem lor n :=
-    match lor with
-    | .leaf => False
-    | .ref i => i = n
-    | .refTwo i j => i = n ∨ j = n
-
-@[simp,grind] instance instMembershipNatLeafOrRef.decide (i : Nat) (lor : LeafOrRef) : Decidable (i ∈ lor) := by
-  match h : lor with
-  | .leaf =>
-    refine .isFalse ?_
-    simp
-  | .ref j =>
-    if hh : j = i then
-      refine .isTrue ?_
-      simp
-      trivial
-    else
-      refine .isFalse ?_
-      simp
-      trivial
-  | .refTwo j k =>
-    if hh : j = i ∨ k = i then
-      refine .isTrue ?_
-      simpa using hh
-    else
-      refine .isFalse ?_
-      simpa using hh
-
-
-@[simp,grind .] theorem LeafOrRef.not_in : ¬i ∈ LeafOrRef.leaf := by simp
-
-@[simp,grind →] theorem LeafOrRef.in_is_ref {item : LeafOrRef} (h : i ∈ item) : item = .ref i ∨ ∃ j, item = .refTwo i j ∨ item = .refTwo j i := by
-  cases item
-  · simp at h
-  · simp at h
-    subst_eqs
-    simp
-  · cases h
-    · subst_eqs
-      simp
-    · subst_eqs
-      simp
-
-
-
-@[simp,grind =>] theorem LeafOrRef.ref_is_in {item : LeafOrRef} (h : item = .ref i) : i ∈ item := by
-  simp
-  cases item
-  · simp at h
-  · simp at h
-    subst_eqs
-    rfl
-  · simp at h
-
-
-@[simp,grind =>] theorem LeafOrRef.refTwo_is_in_fst {item : LeafOrRef} (h : item = .refTwo a b) : a ∈ item := by
-  simp
-  cases item
-  · simp at h
-  · simp at h
-  · simp
-    grind
-
-
-@[simp,grind =>] theorem LeafOrRef.refTwo_is_in_snd {item : LeafOrRef} (h : item = .refTwo a b) : b ∈ item := by
-  simp
-  cases item
-  · simp at h
-  · simp at h
-  · simp
-    grind
-
 
 @[grind →] theorem List.rev_pigeonhole_principle {l : List Nat}
     (nodup : l.Nodup)
@@ -112,6 +28,30 @@ inductive LeafOrRef
     · intro hs
       exact hitemin (hs (by simpa using hitemlen))
   simpa using Finset.card_lt_card this
+
+end List
+
+
+
+section  Producible
+
+/-- A version of `Decidable` suitable for carrying new information in the case that the thing matching the prop can be produced, or alternatively the proof that the thing is not producible for any value. -/
+@[grind]
+private class inductive Producible {α : Type} (p : α → Prop) : Type where
+  /-- Yes, a value of this type of which the prop is true can be produced! -/
+  | possible : (a : α) → p a → Producible p
+  /-- No, no value of this type for which the prop is true can be produced ☹️ -/
+  | impossible : (∀ a, ¬p a) → Producible p
+
+end Producible
+
+
+
+
+
+
+
+
 
 
 
@@ -153,9 +93,6 @@ inductive LeafOrRef
   have := Finset.card_lt_card this
   grind
 
-
-@[reducible]
-def Ctx := List LeafOrRef
 
 
 
@@ -1070,68 +1007,6 @@ theorem FullWalk.exists_non_dup
 
 
 
-
-
-
-
-def Walk.getReachables [Fintype V]
-  (graph : Graph (V:=V))
-  (current : V)
-  (seenRefs : Finset V) :
-  Finset V :=
-  if _hin : current ∈ seenRefs then
-    seenRefs
-  else
-    let nodes := graph current
-    nodes.biUnion (λ node ↦ insert node (getReachables graph node (insert current seenRefs)))
-
-  termination_by (Fintype.card V - seenRefs.card)
-  decreasing_by
-    simp [*]
-    apply Nat.sub_lt_sub_left
-    · apply Finset.card_lt_univ_of_notMem _hin
-    · simp
-
-
-
-
-theorem FullWalk.getReachables_complete
-  {current : V}
-  (hseenswalk : ∀ seen ∈ seenRefs, Walk graph seen current)
-  (shortestWalk : FullWalk graph current dest segments)
-  (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: segments)
-  (segsunique : (current :: segments).Nodup ∧ (dest :: segments).Nodup)
-  : dest ∈ Walk.getReachables graph current seenRefs := by
-  fun_induction Walk.getReachables graph current seenRefs
-    generalizing segments dest
-  with
-  | case1 current seenRefs hin => simpa using noOverlap _ hin
-  | @case2 current seenRefs ninseen nodes ih =>
-    simp at noOverlap
-    -- have : dest ∉ seenRefs := by grind
-    simp [*]
-    cases shortestWalk using FullWalk.cons_induction with
-    | direct dref =>
-      exists dest, dref
-      simp
-    | cons dref walk₂ ih =>
-      clear ih
-      expose_names
-      exists head, dref
-      simp at segsunique
-      simp [*]
-      apply ih head _ walk₂ _ (by grind)
-      · simp [*]
-        constructor
-        · refine .direct dref
-        · intro seen seenin
-          refine .indirect ?_ (.direct dref)
-          refine hseenswalk _ seenin
-      · simp [*]
-        grind
-
-
-
 /-- Bool-valued implementation of decidable function for walks -/
 def Walk.decideBool [Fintype V]
   (graph : Graph (V:=V))
@@ -1269,6 +1144,12 @@ theorem FullWalk.decideBool_fresh_complete_full_walk {current : V}
 
 
 
+omit [Fintype V] [DecidableEq V] in
+/-- Just to point out that `Walk` is not a reflexive relation -/
+theorem Walk.not_trivially_true {i : V} : ∃ graph, ¬Walk graph i i := by
+  let graph : ∀ v : V, Finset V := λ _ ↦ ∅
+  exists graph
+  exact leaf_no_walk rfl
 
 
 
@@ -1316,8 +1197,7 @@ instance Walk.decide [Fintype V]
           absurd dec
           simp
           refine fw.decideBool_complete (seenRefs:=∅) (segsprecurr:=[]) (segspostcurr:=tail) (.direct dref) (by simp) (current:=head) (by simp) (by simp) ?_
-          grind
-
+          simpa using nodup
 
 
 
