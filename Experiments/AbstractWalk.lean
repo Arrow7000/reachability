@@ -29,6 +29,19 @@ theorem List.dropEnd_dropEnd {l : List α} : (l.dropEnd i).dropEnd j = l.dropEnd
       exact hitemin (hs (by simpa using hitemlen))
   simpa using Finset.card_lt_card this
 
+
+@[grind →]
+theorem List.nodup_lte_fintype_mem [Fintype V]
+  {list : List V}
+  (seensNodup : list.Nodup)
+  (hin : newItem ∉ list)
+  : Fintype.card V - (list.length + 1) < Fintype.card V - list.length := by
+  have hcons : (newItem :: list).Nodup := List.nodup_cons.mpr ⟨hin, seensNodup⟩
+  have hlen : (newItem :: list).length ≤ Fintype.card V := List.Nodup.length_le_card hcons
+  simp only [List.length_cons] at hlen
+  omega
+
+
 end List
 
 
@@ -105,7 +118,7 @@ variable {V : Type} [Fintype V] [DecidableEq V]
 namespace LocalDefs
 
 /-- A graph is defined abstractly as a function that given a node ID returns the set of connected nodes it points to -/
-abbrev Graph (V:=V) := V → Finset V
+abbrev Graph (V:=V) := V → List V
 
 end LocalDefs
 export LocalDefs (Graph)
@@ -116,7 +129,8 @@ section Walk
 
 
 
-
+instance : Membership V { list : List V // list.Nodup } where
+  mem l node := node ∈ l.val
 
 
 /-- Node `v` directly references node `u`. Because `u` is in the set of nodes that `v` connects to. -/
@@ -144,7 +158,7 @@ inductive Walk (graph : Graph) : (origin dest : V) → Prop
 
 /-- If a thing only has a single ref and that ref is back to itself, it cannot lead to anywhere else -/
 @[grind =>]
-theorem Walk.selfRef_nwalk_elsewhere {graph : Graph} (h : graph current = {current}) : ∀ dest ≠ current, ¬Walk graph current dest := by
+theorem Walk.selfRef_nwalk_elsewhere {graph : Graph} (h : graph current = [current]) : ∀ dest ≠ current, ¬Walk graph current dest := by
   intro dest destneq walk
   induction walk with
   | direct hh => grind
@@ -153,7 +167,7 @@ theorem Walk.selfRef_nwalk_elsewhere {graph : Graph} (h : graph current = {curre
 
 
 
-@[grind =>] theorem Walk.leaf_no_walk {graph : Graph} (h : graph a = ∅) : ∀ {b}, ¬Walk graph a b := by
+@[grind =>] theorem Walk.leaf_no_walk {graph : Graph} (h : graph a = []) : ∀ {b}, ¬Walk graph a b := by
   intro b nwalk
   induction nwalk
   · grind
@@ -223,7 +237,7 @@ theorem Walk.not_FullWalk : ¬Walk ctx origin dest → ∀ segments, ¬FullWalk 
 
 @[grind =>]
 theorem FullWalk.ref_self_no_dest {graph : Graph}
-  (h : graph a = {a})
+  (h : graph a = [a])
   (hneq : a ≠ dest)
   : ∀ {segments}, ¬FullWalk graph a dest segments := by grind
 
@@ -363,7 +377,7 @@ example (h : FullWalk ctx origin dest segments) (hne : segments ≠ []) :
 @[grind .]
 theorem FullWalk.ref_iff_dest
   (fw : FullWalk graph origin dest segments)
-  (h : graph origin = {b})
+  (h : graph origin = [b])
   : b = dest ∨ ∃ tailSegs, ∃ (_segPrf : segments = b :: tailSegs), FullWalk graph b dest tailSegs := by
   -- Apply the segments_structure lemma
   have struct := FullWalk.segments_structure fw
@@ -1023,7 +1037,7 @@ def Walk.decideBool [Fintype V]
     if _hin : current ∈ seenRefs then
       false
     else
-      let result := (graph current).image (λ child ↦ decideBool graph origin child dest (insert current seenRefs))
+      let result := (graph current).map (λ child ↦ decideBool graph origin child dest (insert current seenRefs))
       result.filter (· = true) ≠ ∅
 
   termination_by (Fintype.card V - seenRefs.card)
@@ -1147,7 +1161,7 @@ theorem FullWalk.decideBool_fresh_complete_full_walk {current : V}
 omit [Fintype V] [DecidableEq V] in
 /-- Just to point out that `Walk` is not a reflexive relation -/
 theorem Walk.not_trivially_true {i : V} : ∃ graph, ¬Walk graph i i := by
-  let graph : ∀ v : V, Finset V := λ _ ↦ ∅
+  let graph : ∀ v : V, List V := λ _ ↦ ∅
   exists graph
   exact leaf_no_walk rfl
 
@@ -1169,7 +1183,7 @@ instance Walk.decide [Fintype V]
     by_cases hdirect : dest ∈ graph origin
     · refine .isTrue ?_
       refine .direct hdirect
-    · let result := (graph origin).image (λ child ↦ decideBool graph origin child dest ∅)
+    · let result := (graph origin).map (λ child ↦ decideBool graph origin child dest ∅)
 
       if hresult : true ∈ result then
         refine .isTrue ?_
@@ -1213,3 +1227,94 @@ def HasCycle ctx (i : V) := Walk ctx i i
 instance HasCycle.decide (ctx : Graph) (i : V) :
   Decidable (HasCycle ctx i) :=
     Walk.decide ctx i i
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+inductive FullWalkResult
+  | noPath
+  | hasPath (segments : List V)
+
+
+
+def FullWalk.decideList [Fintype V]
+  (graph : Graph (V:=V))
+
+  (origin : V) -- not in seens
+  (current : V) -- is not `origin`
+  (dest : V) -- not in seens
+
+  (seenRefs : List V)
+  (seenRefsNodup : seenRefs.Nodup) :
+  FullWalkResult (V:=V) :=
+  if _heq : current = dest then
+    .hasPath seenRefs
+  else
+    if _hin : current ∈ seenRefs then
+      .noPath
+    else
+      let results := (graph current).map (λ child ↦ decideList graph origin child dest ( seenRefs ++ [current]) (by grind))
+      let filtered :=
+        results.filterMap
+          λ result ↦
+            match result with
+            | .noPath => none
+            | .hasPath path => some path
+
+      match filtered with
+      | [] => .noPath
+      | headPaths :: _tail =>
+        -- @TODO: return the one with the shortest path actually
+        .hasPath headPaths
+
+  termination_by (Fintype.card V - seenRefs.length)
+  decreasing_by
+    simp [*]
+    exact List.nodup_lte_fintype_mem seenRefsNodup _hin
+
+
+
+
+
+-- /-- If we return a `.hasPath`, then the `segments` is `seenRefs` reversed-/
+-- theorem FullWalk.decideList_segs_seens_rev {origin : V}
+--   (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
+--   (h : FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath segments)
+--   : segments = seenRefs.reverse := by
+--   fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup generalizing segments with
+--   | case1 seenRefs seensNodup =>
+--     simp at h
+--     tauto
+--   | case2 => simp at h
+--   | case3 => simp at h
+--   | @case4 curr seenRefs seensNodup hncurrs hcurrinseen results filtered headPaths _tail hfiltered ih =>
+--     simp at h
+--     subst_eqs
+--     simp [filtered] at hfiltered
+--     simp [results] at hfiltered
+--     -- have :=
+
+
+
+theorem FullWalk.decideList_sound {current : V}
+  (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
+  (hseenswalk : FullWalk graph origin current seenRefs)
+  (fw : FullWalk graph origin dest segments)
+  (hcurrinseg : current ∈ segments)
+  : ∃ segs, FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath segs := by
+  fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup with
+  | case1 seenRefs seensNodup => exists seenRefs
+  | case2 =>
+    expose_names
+    simp [*] at *
