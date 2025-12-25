@@ -1306,15 +1306,68 @@ def FullWalk.decideList [Fintype V]
 --     -- have :=
 
 
+lemma FullWalk.decideList_if_not_path_no_path : (∀ (paths : List V), ¬FullWalk.decideList graph origin head dest segments nodup = FullWalkResult.hasPath paths) → FullWalk.decideList graph origin head dest segments nodup = .noPath := by
+  intro h
+  cases result : FullWalk.decideList graph origin head dest segments nodup with
+  | noPath => rfl
+  | hasPath paths => exact absurd result (h paths)
+
+
+
+
+
 
 theorem FullWalk.decideList_sound {current : V}
+  (segsplit : segments = segsprecurr ++ [current] ++ segspostcurr)
   (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
   (hseenswalk : FullWalk graph origin current seenRefs)
   (fw : FullWalk graph origin dest segments)
   (hcurrinseg : current ∈ segments)
+  (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: segspostcurr)
   : ∃ segs, FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath segs := by
-  fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup with
+  fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup generalizing segsprecurr segspostcurr segments with
   | case1 seenRefs seensNodup => exists seenRefs
   | case2 =>
     expose_names
-    simp [*] at *
+    simp
+    exact noOverlap current h_1 (List.Mem.head segspostcurr)
+
+  | @case3 current seenRefs seenNodup hncurreqdest currninseens results filtered filteredemp ih =>
+    simp [results, filtered] at filteredemp
+    simp
+    cases segspostcurr with
+    | nil =>
+      simp [segsplit] at hcurrinseg fw
+      have destincurr : dest ∈ graph current := by grind
+      have := filteredemp _ destincurr
+      unfold decideList at this
+      simp only [↓reduceDIte, reduceCtorEq] at this
+    | cons head tail =>
+      have headincurr : head ∈ graph current := by
+        rw [segsplit] at fw
+        have := fw.from_seg_to_end segsprecurr.length (by grind)
+        simp at this
+        grind
+
+      have := filteredemp _ headincurr
+      have nodup : (seenRefs ++ [current]).Nodup := by grind
+      by_cases hex : ∃ path, decideList graph origin head dest (seenRefs ++ [current]) nodup = .hasPath path
+      · obtain ⟨path,dec⟩ := hex
+        rw [dec] at this
+        simp at this
+      · simp at hex
+        have dec : decideList graph origin head dest (seenRefs ++ [current]) nodup = FullWalkResult.noPath := decideList_if_not_path_no_path hex
+
+        rw [dec] at this
+        simp at this
+        have headinsegs : head ∈ segments := by grind
+
+        have ⟨segs,prf⟩ := ih (segsprecurr:=segsprecurr++[current]) (segspostcurr:=tail) head ?_ segsunique ?_ fw headinsegs ?_
+        · refine hex segs prf
+        · simp at segsplit ⊢
+          exact segsplit
+        · refine .indirect hseenswalk (.direct headincurr) ?_
+          simp
+        · grind
+
+  | case4 => grind
