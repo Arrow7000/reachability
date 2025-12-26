@@ -1264,19 +1264,18 @@ def FullWalk.decideList [Fintype V]
     if _hin : current ∈ seenRefs then
       .noPath
     else
-      let results := (graph current).map (λ child ↦ decideList graph origin child dest (seenRefs ++ [current]) (by grind))
+      have nodup : (seenRefs ++ [current]).Nodup := by grind
+
       let filtered :=
-        results.filterMap
-          λ result ↦
-            match result with
-            | .noPath => none
-            | .hasPath path => some path
+        (graph current).findSome? (λ child ↦
+          match decideList graph origin child dest (seenRefs ++ [current]) nodup with
+          | .noPath => none
+          | .hasPath paths => some (child, paths))
 
       match filtered with
-      | [] => .noPath
-      | headPaths :: _tail =>
-        -- @TODO: return the one with the shortest path actually
-        .hasPath headPaths
+      | none => .noPath
+      | some (_child, paths) => .hasPath paths
+
 
   termination_by (Fintype.card V - seenRefs.length)
   decreasing_by
@@ -1332,8 +1331,8 @@ theorem FullWalk.decideList_completeness {current : V}
     simp
     exact noOverlap current h_1 (List.Mem.head segspostcurr)
 
-  | @case3 current seenRefs seenNodup hncurreqdest currninseens results filtered filteredemp ih =>
-    simp [results, filtered] at filteredemp
+  | @case3 current seenRefs seenNodup hncurreqdest currninseens nodup filtered filteredemp ih =>
+    simp [filtered] at filteredemp
     simp
     cases segspostcurr with
     | nil =>
@@ -1374,7 +1373,7 @@ theorem FullWalk.decideList_completeness {current : V}
 
 
 
-
+@[grind →]
 theorem FullWalk.decideList_completeness_fresh {current : V}
   (segsplit : segments = [current] ++ segspostcurr)
   (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
@@ -1393,30 +1392,27 @@ theorem FullWalk.decideList_completeness_fresh {current : V}
 
 
 
--- theorem FullWalk.decideList_sound {current : V}
---   (segsplit : segments = segsprecurr ++ [current] ++ segspostcurr)
---   (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
---   (hseenswalk : FullWalk graph origin current seenRefs)
---   (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: segspostcurr)
---   (h : FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath segs) : FullWalk graph origin dest segments
---   := by
---   fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup generalizing segsprecurr segspostcurr segments with
---   | case1 => grind
---   | case2 => grind
---   | case3 => grind
---   | @case4 current seenRefs seenNodup hncurreqdest currninseens results filtered headPaths tail filteredeq ih =>
---     simp at h
---     subst_eqs
---     simp at ih
 
 
 
---     sorry
+omit [Fintype V] [DecidableEq V] in
+lemma findSome?_child_mem {l : List V} {f : V → FullWalkResult}
+    {child : V} {paths : List V}
+    (h : l.findSome? (fun c => match f c with
+      | .noPath => none
+      | .hasPath ps => some (c, ps)) = some (child, paths)) :
+    child ∈ l := by
+  have ⟨a, ha_mem, ha_eq⟩ := List.exists_of_findSome?_eq_some h
+  match hfa : f a with
+  | .noPath => simp [hfa] at ha_eq
+  | .hasPath ps =>
+    simp [hfa] at ha_eq
+    obtain ⟨rfl, _⟩ := ha_eq
+    exact ha_mem
 
 
-
+@[grind →]
 theorem FullWalk.decideList_sound {current : V}
-  -- (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
   (hseenswalk : FullWalk graph origin current seenRefs)
   (h : FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath segments) : FullWalk graph origin dest segments
   := by
@@ -1428,21 +1424,60 @@ theorem FullWalk.decideList_sound {current : V}
 
   | case2 => grind
   | case3 => grind
-  | @case4 current seenRefs seenNodup hncurreqdest currninseens results filtered headPaths tail filteredeq ih =>
+  | @case4 current seenRefs seenNodup hncurreqdest currninseens nodup filtered child paths filteredeq ih =>
     simp at h
     subst_eqs
-
-    -- cases hfiltered : filtered with
-    -- | nil => grind
-    -- | cons
-
-    simp [results, filtered] at filteredeq
-    apply ih
-
-    simp at ih
-
+    simp [filtered] at filteredeq
+    have dref : child ∈ graph current :=
+      findSome?_child_mem filteredeq
+    apply ih child
+    · refine .indirect hseenswalk (.direct dref) (by simp)
+    · have := List.findSome?_eq_some_iff.mp filteredeq
+      simp at this
+      grind
 
 
 
 
-    sorry
+
+
+
+instance FullWalk.producible {origin : V} : Producible (FullWalk graph origin dest) := by
+  by_cases hdirect : dest ∈ graph origin
+  · refine .possible [] ?_
+    refine .direct hdirect
+  · let filtered :=
+      (graph origin).findSome? (λ child ↦
+        match decideList graph origin child dest [] (by simp) with
+        | .noPath => none
+        | .hasPath paths => some (child, paths))
+
+    match hfiltered : filtered with
+    | none =>
+      refine .impossible ?_
+      intro segs fw
+      obtain ⟨segs, nodups, fw⟩ := fw.exists_non_dup
+      simp [filtered] at hfiltered
+      match segs with
+      | [] => grind
+      | head :: tail =>
+          have ⟨segs,prf⟩ := fw.decideList_completeness_fresh (current := head) (segspostcurr:=tail) (by simp) nodups
+
+          have dref : head ∈ graph origin := by grind
+          have := hfiltered _ dref
+          simp at this prf
+          rw [prf] at this
+          simp at this
+
+    | some (_child, paths) =>
+      simp [filtered] at hfiltered
+      refine .possible paths ?_
+      clear filtered
+      have dref := findSome?_child_mem hfiltered
+      have := List.findSome?_eq_some_iff.mp hfiltered
+      simp at this
+      obtain ⟨l₁,a, prf₁, prf₂, prf₃⟩ := this
+      have : a = _child := by grind
+      subst_eqs
+      have dec : decideList graph origin _child dest [] (by simp) = .hasPath paths := by grind
+      refine FullWalk.decideList_sound (.direct dref) dec
