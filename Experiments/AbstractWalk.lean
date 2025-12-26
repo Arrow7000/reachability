@@ -1264,7 +1264,7 @@ def FullWalk.decideList [Fintype V]
     if _hin : current ∈ seenRefs then
       .noPath
     else
-      let results := (graph current).map (λ child ↦ decideList graph origin child dest ( seenRefs ++ [current]) (by grind))
+      let results := (graph current).map (λ child ↦ decideList graph origin child dest (seenRefs ++ [current]) (by grind))
       let filtered :=
         results.filterMap
           λ result ↦
@@ -1317,14 +1317,14 @@ lemma FullWalk.decideList_if_not_path_no_path : (∀ (paths : List V), ¬FullWal
 
 
 
-theorem FullWalk.decideList_sound {current : V}
+theorem FullWalk.decideList_completeness {current : V}
   (segsplit : segments = segsprecurr ++ [current] ++ segspostcurr)
   (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
   (hseenswalk : FullWalk graph origin current seenRefs)
   (fw : FullWalk graph origin dest segments)
-  (hcurrinseg : current ∈ segments)
   (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: segspostcurr)
   : ∃ segs, FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath segs := by
+  have hcurrinseg : current ∈ segments := by grind
   fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup generalizing segsprecurr segspostcurr segments with
   | case1 seenRefs seensNodup => exists seenRefs
   | case2 =>
@@ -1361,13 +1361,88 @@ theorem FullWalk.decideList_sound {current : V}
         rw [dec] at this
         simp at this
         have headinsegs : head ∈ segments := by grind
-
-        have ⟨segs,prf⟩ := ih (segsprecurr:=segsprecurr++[current]) (segspostcurr:=tail) head ?_ segsunique ?_ fw headinsegs ?_
+        have ⟨segs,prf⟩ := ih (segsprecurr:=segsprecurr++[current]) (segspostcurr:=tail) head ?_ segsunique ?_ fw ?_ headinsegs
         · refine hex segs prf
         · simp at segsplit ⊢
           exact segsplit
         · refine .indirect hseenswalk (.direct headincurr) ?_
           simp
         · grind
-
   | case4 => grind
+
+
+
+
+
+
+theorem FullWalk.decideList_completeness_fresh {current : V}
+  (segsplit : segments = [current] ++ segspostcurr)
+  (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
+  (fw : FullWalk graph origin dest segments)
+  : ∃ segs, FullWalk.decideList graph origin current dest ∅ (by simp) = .hasPath segs := by
+  have hcurrinseg : current ∈ segments := by grind
+  refine FullWalk.decideList_completeness (seenRefs:=∅) ?_ segsunique ?_ fw (by simp) (seenNodup:=by simp) (segspostcurr:=segspostcurr) (segsprecurr:=[])
+  · grind
+  · simp at segsplit
+    have dref := fw.ref_segment_cons segsplit
+    refine .direct dref
+
+
+
+
+
+
+
+-- theorem FullWalk.decideList_sound {current : V}
+--   (segsplit : segments = segsprecurr ++ [current] ++ segspostcurr)
+--   (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
+--   (hseenswalk : FullWalk graph origin current seenRefs)
+--   (noOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: segspostcurr)
+--   (h : FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath segs) : FullWalk graph origin dest segments
+--   := by
+--   fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup generalizing segsprecurr segspostcurr segments with
+--   | case1 => grind
+--   | case2 => grind
+--   | case3 => grind
+--   | @case4 current seenRefs seenNodup hncurreqdest currninseens results filtered headPaths tail filteredeq ih =>
+--     simp at h
+--     subst_eqs
+--     simp at ih
+
+
+
+--     sorry
+
+
+
+theorem FullWalk.decideList_sound {current : V}
+  -- (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
+  (hseenswalk : FullWalk graph origin current seenRefs)
+  (h : FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath segments) : FullWalk graph origin dest segments
+  := by
+  fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup generalizing segments with
+  | case1 =>
+    simp at h
+    subst_eqs
+    exact hseenswalk
+
+  | case2 => grind
+  | case3 => grind
+  | @case4 current seenRefs seenNodup hncurreqdest currninseens results filtered headPaths tail filteredeq ih =>
+    simp at h
+    subst_eqs
+
+    -- cases hfiltered : filtered with
+    -- | nil => grind
+    -- | cons
+
+    simp [results, filtered] at filteredeq
+    apply ih
+
+    simp at ih
+
+
+
+
+
+    sorry
