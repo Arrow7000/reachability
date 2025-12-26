@@ -1,4 +1,5 @@
 import Mathlib
+import Experiments.Producible
 
 section List
 
@@ -43,22 +44,6 @@ theorem List.nodup_lte_fintype_mem [Fintype V]
 
 
 end List
-
-
-
-section  Producible
-
-/-- A version of `Decidable` suitable for carrying new information in the case that the thing matching the prop can be produced, or alternatively the proof that the thing is not producible for any value. -/
-@[grind]
-private class inductive Producible {α : Type} (p : α → Prop) : Type where
-  /-- Yes, a value of this type of which the prop is true can be produced! -/
-  | possible : (a : α) → p a → Producible p
-  /-- No, no value of this type for which the prop is true can be produced ☹️ -/
-  | impossible : (∀ a, ¬p a) → Producible p
-
-end Producible
-
-
 
 
 
@@ -900,9 +885,10 @@ theorem FullWalk.get_dest_nin_segs
 
 
 
-
-/-- Split at any middle section -/
-theorem FullWalk.split_by_segs
+omit [Fintype V] [DecidableEq V] in
+/-- Split at any middle section – valuable theorem!! -/
+@[grind →]
+theorem FullWalk.split_by_segs {origin : V}
   (h : FullWalk ctx origin dest segments)
   (hsegs : segments = segs₁ ++ [middle] ++ segs₂)
   : FullWalk ctx origin middle segs₁ ∧ FullWalk ctx middle dest segs₂ := by
@@ -1442,7 +1428,7 @@ theorem FullWalk.decideList_sound {current : V}
 
 
 
-instance FullWalk.producible {origin : V} : Producible (FullWalk graph origin dest) := by
+instance FullWalk.producible (graph : Graph) (origin dest : V) : Producible (FullWalk graph origin dest) := by
   by_cases hdirect : dest ∈ graph origin
   · refine .possible [] ?_
     refine .direct hdirect
