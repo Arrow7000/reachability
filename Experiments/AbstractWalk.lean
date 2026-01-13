@@ -509,7 +509,8 @@ theorem FullWalk.ref_segment_arse
     expose_names
     induction segments₂ using List.reverseRecOn with
     | nil =>
-      simp [*] at *
+      rw [hsegeq] at combeq
+      replace combeq : body ++ [bum] = segments₁ ++ [b] := by grind
       have : body = segments₁ := List.append_inj_left' combeq rfl
       have : bum = b := by simpa [this] using combeq
       subst_eqs
@@ -548,7 +549,8 @@ theorem FullWalk.snoc_arse_segment
     expose_names
     induction segments₂ using List.reverseRecOn with
     | nil =>
-      simp [*] at *
+      rw [hsegeq] at combeq
+      replace combeq : body ++ [bum] = segments₁ ++ [b] := by grind
       have : body = segments₁ := List.append_inj_left' combeq rfl
       have : bum = b := by simpa [this] using combeq
       subst_eqs
