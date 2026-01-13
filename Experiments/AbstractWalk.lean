@@ -131,11 +131,10 @@ inductive Walk (graph : Graph) : (origin dest : V) → Prop
     DirectRef graph origin dest →
     Walk graph origin dest
 
-  | indirect :
-    (walk₁ : Walk graph a b) →
-    (walk₂ : Walk graph b c) →
+  | tail :
+    DirectRef graph a b →
+    (walk : Walk graph b c) →
     Walk graph a c
-
 
 
 
@@ -146,8 +145,21 @@ inductive Walk (graph : Graph) : (origin dest : V) → Prop
 theorem Walk.selfRef_nwalk_elsewhere {graph : Graph} (h : graph current = {current}) : ∀ dest ≠ current, ¬Walk graph current dest := by
   intro dest destneq walk
   induction walk with
-  | direct hh => grind
-  | indirect walka walkb aih bih => grind
+  | direct hh =>
+    simp at hh
+    rw [h] at hh
+    simp at hh
+    contradiction
+  | tail dref walk ih =>
+    simp at dref
+    rw [h] at dref
+    simp at dref
+    subst_eqs
+    rw [h] at ih
+    simp at ih
+    subst_eqs
+    contradiction
+
 
 
 
@@ -155,11 +167,22 @@ theorem Walk.selfRef_nwalk_elsewhere {graph : Graph} (h : graph current = {curre
 @[grind =>] theorem Walk.leaf_no_walk {graph : Graph} (h : graph a = ∅) : ∀ {b}, ¬Walk graph a b := by
   intro b nwalk
   induction nwalk
+  · simp [*] at *
   · grind
-  · tauto
 
 
 
+/-- Glue together two FullWalks that share a common intermediate node.
+This replaces the `.indirect` constructor from the original definition. -/
+theorem Walk.append
+    (walk₁ : Walk graph a b)
+    (walk₂ : Walk graph b c)
+    : Walk graph a c := by
+  induction walk₁ generalizing c with
+  | direct hdref =>
+    exact .tail hdref walk₂
+  | tail hdref _ ih =>
+    exact .tail hdref (ih walk₂)
 
 
 
@@ -172,11 +195,11 @@ inductive FullWalk (graph : Graph) : (origin dest : V) → (segments : List V) �
     DirectRef graph origin dest →
     FullWalk graph origin dest []
 
-  | indirect :
-    (walk₁ : FullWalk graph a b segments₁) →
-    (walk₂ : FullWalk graph b c segments₂) →
-    combinedSegments = segments₁ ++ [b] ++ segments₂ →
-    FullWalk graph a c combinedSegments
+  | tail :
+    DirectRef graph a b →
+    (walk : FullWalk graph b c segments) →
+    FullWalk graph a c (b :: segments)
+
 
 
 
@@ -187,7 +210,7 @@ theorem FullWalk.toWalk : FullWalk graph origin dest segments → Walk graph ori
   · expose_names
     refine .direct h
   · expose_names
-    refine .indirect walk₁_ih walk₂_ih
+    exact Walk.tail h walk_ih
 
 
 @[grind →]
@@ -198,10 +221,9 @@ theorem Walk.toFullWalk : Walk graph origin dest → ∃ segments, FullWalk grap
     exists []
     refine .direct h
   · expose_names
-    obtain ⟨segments₁,fw₁⟩ := walk₁_ih
-    obtain ⟨segments₂,fw₂⟩ := walk₂_ih
-    exists segments₁ ++ [b] ++ segments₂
-    refine .indirect fw₁ fw₂ rfl
+    obtain ⟨segments,fw⟩ := walk_ih
+    exists b :: segments
+    refine .tail h fw
 
 
 
@@ -218,6 +240,36 @@ theorem Walk.not_FullWalk : ¬Walk ctx origin dest → ∀ segments, ¬FullWalk 
 
 
 
+
+
+
+/-- Append a direct reference to the end of a walk -/
+theorem FullWalk.snoc
+    (hwalk : FullWalk graph origin bum segments)
+    (hdref : DirectRef graph bum dest)
+    : FullWalk graph origin dest (segments ++ [bum]) := by
+  induction hwalk generalizing dest with
+  | direct hdref' =>
+    simp
+    exact .tail hdref' (.direct hdref)
+  | tail hdref' _ ih =>
+    simp
+    exact .tail hdref' (ih hdref)
+
+
+/-- Glue together two FullWalks that share a common intermediate node.
+This replaces the `.indirect` constructor from the original definition. -/
+theorem FullWalk.append
+    (walk₁ : FullWalk graph a b segments₁)
+    (walk₂ : FullWalk graph b c segments₂)
+    : FullWalk graph a c (segments₁ ++ [b] ++ segments₂) := by
+  induction walk₁ generalizing c segments₂ with
+  | direct hdref =>
+    simp
+    exact .tail hdref walk₂
+  | tail hdref _ ih =>
+    simp only [List.cons_append]
+    exact .tail hdref (ih walk₂)
 
 
 @[grind =>]
@@ -244,114 +296,116 @@ lemma FullWalk.segments_structure
   | direct dref =>
     left
     exact ⟨rfl, dref⟩
-  | indirect walka walkb combeq aih bih =>
-    expose_names
-    cases walka with
-    | direct dref =>
-      -- segments₁ = [], so combinedSegments = [b] ++ segments₂ = b :: segments₂
-      right
-      exists b, segments₂
-    | indirect walka1 walka2 combeq1 =>
-      -- walka is indirect, so segments₁ ≠ []
-      -- Apply IH to walka to get the structure of segments₁
-      have ih_result := aih
-      cases ih_result with
-      | inl h =>
-        -- segments₁ = [] ∧ DirectRef ctx (ctx[a]) b
-        -- But walka is indirect, so segments₁ = segments₁' ++ [x] ++ segments₂' for some x
-        -- This contradicts segments₁ = []
-        simp [combeq1] at h
-      | inr exists_first =>
-        -- ∃ b' tailSegs₁, segments₁ = b' :: tailSegs₁ ∧ DirectRef ctx (ctx[a]) b' ∧ FullWalk ctx b' b tailSegs₁
-        obtain ⟨b', tailSegs₁, segs_eq, dref, walk_b'_to_b⟩ := exists_first
-        right
-        exists b', tailSegs₁ ++ [b] ++ segments₂
-        constructor
-        · rw [combeq, segs_eq]
-          rfl
-        · constructor
-          · exact dref
-          · exact .indirect walk_b'_to_b walkb rfl
+  | tail dref walk ih => tauto
+
+  -- | indirect walka walkb combeq aih bih =>
+  --   expose_names
+  --   cases walka with
+  --   | direct dref =>
+  --     -- segments₁ = [], so combinedSegments = [b] ++ segments₂ = b :: segments₂
+  --     right
+  --     exists b, segments₂
+  --   | indirect walka1 walka2 combeq1 =>
+  --     -- walka is indirect, so segments₁ ≠ []
+  --     -- Apply IH to walka to get the structure of segments₁
+  --     have ih_result := aih
+  --     cases ih_result with
+  --     | inl h =>
+  --       -- segments₁ = [] ∧ DirectRef ctx (ctx[a]) b
+  --       -- But walka is indirect, so segments₁ = segments₁' ++ [x] ++ segments₂' for some x
+  --       -- This contradicts segments₁ = []
+  --       simp [combeq1] at h
+  --     | inr exists_first =>
+  --       -- ∃ b' tailSegs₁, segments₁ = b' :: tailSegs₁ ∧ DirectRef ctx (ctx[a]) b' ∧ FullWalk ctx b' b tailSegs₁
+  --       obtain ⟨b', tailSegs₁, segs_eq, dref, walk_b'_to_b⟩ := exists_first
+  --       right
+  --       exists b', tailSegs₁ ++ [b] ++ segments₂
+  --       constructor
+  --       · rw [combeq, segs_eq]
+  --         rfl
+  --       · constructor
+  --         · exact dref
+  --         · exact .indirect walk_b'_to_b walkb rfl
 
 
 
 
 
-omit [Fintype V] [DecidableEq V] in
-/-- Induction principle for `FullWalk` that works by adding one segment at a time from the front.
+-- omit [Fintype V] [DecidableEq V] in
+-- /-- Induction principle for `FullWalk` that works by adding one segment at a time from the front.
 
-To prove a property about an arbitrary `FullWalk ctx origin dest segments`,
-it suffices to prove it for:
-1. Direct walks (empty segments)
-2. Show that if it holds for a walk from `head` to `dest` with segments `tail`,
-   and there's a direct reference from `origin` to `head`,
-   then it holds for the walk from `origin` to `dest` with segments `head :: tail`.
--/
--- @[elab_as_elim]
-theorem FullWalk.cons_induction
-    {motive : ∀ (graph : Graph) (origin dest : V) (segments : List V), FullWalk graph origin dest segments → Prop}
-    (direct : ∀ {graph} {origin} {dest} (h : DirectRef graph origin dest),
-              motive graph origin dest [] (.direct h))
-    (cons : ∀ {graph} {origin} {head} {dest} {tail}
-              (hdirect : DirectRef graph origin head)
-              (htail : FullWalk graph head dest tail),
-              motive graph head dest tail htail →
-              motive graph origin dest (head :: tail)
-                (.indirect (.direct hdirect) htail (by simp)))
-    {graph origin dest segments}
-    (h : FullWalk graph origin dest segments)
-    : motive graph origin dest segments h := by
-  induction segments generalizing origin with
-  | nil =>
-    cases h with
-    | direct dref => exact @direct graph origin dest dref
-    | indirect walka walkb combeq =>
-      simp at combeq
-  | cons head tail ih =>
-    have hstruct := h.segments_structure
-    rcases hstruct with ⟨hempty, _⟩ | ⟨head', tail', hsegeq, hdref, htailwalk⟩
-    · simp at hempty
-    · simp at hsegeq
-      obtain ⟨rfl, rfl⟩ := hsegeq
-      -- We need to show that h equals the reconstructed walk
-      have htail_ih := ih htailwalk
-      -- The tricky part: we need to show h = .indirect (.direct hdref) htailwalk (by simp)
-      -- But we can't directly, so we use proof irrelevance for Prop
-      have : h = .indirect (.direct hdref) htailwalk (by simp) := by
-        apply proof_irrel
-      rw [this]
-      exact @cons graph origin head dest tail hdref htailwalk htail_ih
+-- To prove a property about an arbitrary `FullWalk ctx origin dest segments`,
+-- it suffices to prove it for:
+-- 1. Direct walks (empty segments)
+-- 2. Show that if it holds for a walk from `head` to `dest` with segments `tail`,
+--    and there's a direct reference from `origin` to `head`,
+--    then it holds for the walk from `origin` to `dest` with segments `head :: tail`.
+-- -/
+-- -- @[elab_as_elim]
+-- theorem FullWalk.cons_induction
+--     {motive : ∀ (graph : Graph) (origin dest : V) (segments : List V), FullWalk graph origin dest segments → Prop}
+--     (direct : ∀ {graph} {origin} {dest} (h : DirectRef graph origin dest),
+--               motive graph origin dest [] (.direct h))
+--     (cons : ∀ {graph} {origin} {head} {dest} {tail}
+--               (hdirect : DirectRef graph origin head)
+--               (htail : FullWalk graph head dest tail),
+--               motive graph head dest tail htail →
+--               motive graph origin dest (head :: tail)
+--                 (.indirect (.direct hdirect) htail (by simp)))
+--     {graph origin dest segments}
+--     (h : FullWalk graph origin dest segments)
+--     : motive graph origin dest segments h := by
+--   induction segments generalizing origin with
+--   | nil =>
+--     cases h with
+--     | direct dref => exact @direct graph origin dest dref
+--     | indirect walka walkb combeq =>
+--       simp at combeq
+--   | cons head tail ih =>
+--     have hstruct := h.segments_structure
+--     rcases hstruct with ⟨hempty, _⟩ | ⟨head', tail', hsegeq, hdref, htailwalk⟩
+--     · simp at hempty
+--     · simp at hsegeq
+--       obtain ⟨rfl, rfl⟩ := hsegeq
+--       -- We need to show that h equals the reconstructed walk
+--       have htail_ih := ih htailwalk
+--       -- The tricky part: we need to show h = .indirect (.direct hdref) htailwalk (by simp)
+--       -- But we can't directly, so we use proof irrelevance for Prop
+--       have : h = .indirect (.direct hdref) htailwalk (by simp) := by
+--         apply proof_irrel
+--       rw [this]
+--       exact @cons graph origin head dest tail hdref htailwalk htail_ih
 
 
 
-/-- Example 1: For any walk, the origin can reach the destination -/
-example (h : FullWalk graph origin dest segments) : Walk graph origin dest := by
-  induction h using FullWalk.cons_induction with
-  | direct hdirect =>
-    exact .direct hdirect
-  | cons hdirect htail ih =>
-    exact .indirect (.direct hdirect) ih
+-- /-- Example 1: For any walk, the origin can reach the destination -/
+-- example (h : FullWalk graph origin dest segments) : Walk graph origin dest := by
+--   induction h using FullWalk.cons_induction with
+--   | direct hdirect =>
+--     exact .direct hdirect
+--   | cons hdirect htail ih =>
+--     exact .indirect (.direct hdirect) ih
 
-/-- Example 2: The destination can be reached from any segment in the walk -/
-example (h : FullWalk graph origin dest segments) (hseg : seg ∈ segments) : ∃ segs, FullWalk graph seg dest segs := by
-  induction h using FullWalk.cons_induction with
-  | @direct ctx origin dest hdirect =>
-    simp at hseg
-  | @cons ctx origin head dest tail hdirect htail ih =>
-    simp at hseg
-    rcases hseg with rfl | hseg
-    · exact ⟨tail, htail⟩
-    · exact ih hseg
+-- /-- Example 2: The destination can be reached from any segment in the walk -/
+-- example (h : FullWalk graph origin dest segments) (hseg : seg ∈ segments) : ∃ segs, FullWalk graph seg dest segs := by
+--   induction h using FullWalk.cons_induction with
+--   | @direct ctx origin dest hdirect =>
+--     simp at hseg
+--   | @cons ctx origin head dest tail hdirect htail ih =>
+--     simp at hseg
+--     rcases hseg with rfl | hseg
+--     · exact ⟨tail, htail⟩
+--     · exact ih hseg
 
-/-- Example 3: Non-empty segments implies origin is different from first segment
-    (uses pattern matching after induction) -/
-example (h : FullWalk ctx origin dest segments) (hne : segments ≠ []) :
-    ∃ head tail, segments = head :: tail ∧ DirectRef ctx origin head := by
-  induction h using FullWalk.cons_induction with
-  | direct hdirect =>
-    simp at hne
-  | @cons ctx origin head dest tail hdirect htail ih =>
-    exact ⟨head, tail, rfl, hdirect⟩
+-- /-- Example 3: Non-empty segments implies origin is different from first segment
+--     (uses pattern matching after induction) -/
+-- example (h : FullWalk ctx origin dest segments) (hne : segments ≠ []) :
+--     ∃ head tail, segments = head :: tail ∧ DirectRef ctx origin head := by
+--   induction h using FullWalk.cons_induction with
+--   | direct hdirect =>
+--     simp at hne
+--   | @cons ctx origin head dest tail hdirect htail ih =>
+--     exact ⟨head, tail, rfl, hdirect⟩
 
 
 
@@ -479,20 +533,16 @@ end MinRecOnExamples
 
 
 
+omit [Fintype V] [DecidableEq V] in
 /-- A walk's origin always links directly to its first path segment -/
 @[grind .]
-theorem FullWalk.ref_segment_cons
+theorem FullWalk.ref_segment_cons {tail : List V}
   (h : FullWalk ctx origin dest segments)
   (hsegeq : segments = head :: tail)
   : DirectRef ctx origin head := by
   induction h generalizing tail head with
   | direct h => simp at hsegeq
-  | indirect walka walkb combeq aih bih =>
-    expose_names
-    simp [*] at *
-    cases segments₁ with
-    | nil => grind
-    | cons head' tail' => grind
+  | tail dref walk ih => grind
 
 
 
@@ -505,32 +555,37 @@ theorem FullWalk.ref_segment_arse
   : DirectRef graph bum dest := by
   induction h generalizing body bum with
   | direct h => simp at hsegeq
-  | indirect walka walkb combeq aih bih =>
+  | tail dref walk ih =>
     expose_names
-    induction segments₂ using List.reverseRecOn with
+    cases segments_1 using List.reverseRecOn with
     | nil =>
-      rw [hsegeq] at combeq
-      replace combeq : body ++ [bum] = segments₁ ++ [b] := by grind
-      have : body = segments₁ := List.append_inj_left' combeq rfl
-      have : bum = b := by simpa [this] using combeq
+      have : body = [] := by
+        cases body with
+        | nil => rfl
+        | cons _ _ => simp at hsegeq
+      rw [this] at hsegeq
+      simp at hsegeq
       subst_eqs
-      cases walkb with
-      | indirect _ _ h => simp at h
-      | direct h => exact h
-    | append_singleton body' bum' ih =>
-      symm at combeq
-      rw [hsegeq, ←List.append_assoc] at combeq
-      have : [bum'].length = [bum].length := by simp
-      have := List.append_inj_right' combeq this
-      simp at this
+      simp at ih
+      cases walk
+      trivial
+    | append_singleton body' bum' =>
+      have : b :: (body' ++ [bum']) = (b :: body') ++ [bum'] := by grind
+      rw [this] at hsegeq
+      have : b :: body' = body := List.append_inj_left' hsegeq rfl
       subst_eqs
-      grind
+      simp at hsegeq
+      subst_eqs
+      exact ih rfl
 
 
 
+
+
+omit [Fintype V] [DecidableEq V] in
 /-- If path traverses through at least one segment, given a walk, return a new walk with the origin snipped off the start -/
 @[grind →]
-theorem FullWalk.cons_head_segment
+theorem FullWalk.cons_head_segment {tail : List V}
   (h : FullWalk ctx origin dest segments)
   (hsegeq : segments = head :: tail)
   : FullWalk ctx head dest tail := by grind
@@ -545,150 +600,188 @@ theorem FullWalk.snoc_arse_segment
   : FullWalk ctx origin bum body := by
   induction h generalizing body with
   | direct h => simp at hsegeq
-  | indirect walka walkb combeq aih bih =>
+  | tail dref walk ih =>
     expose_names
-    induction segments₂ using List.reverseRecOn with
+    induction segments_1 using List.reverseRecOn with
     | nil =>
-      rw [hsegeq] at combeq
-      replace combeq : body ++ [bum] = segments₁ ++ [b] := by grind
-      have : body = segments₁ := List.append_inj_left' combeq rfl
-      have : bum = b := by simpa [this] using combeq
+      have : body = [] := by
+        cases body with
+        | nil => rfl
+        | cons _ _ => simp at hsegeq
       subst_eqs
-      cases walkb with
-      | indirect _ _ h => simp at h
-      | direct h => exact walka
-    | append_singleton body' bum' ih =>
-      rw [hsegeq, ←List.append_assoc] at combeq
-      have : body = segments₁ ++ [b] ++ body' := List.append_inj_left' combeq rfl
-      have : bum = bum' := by simpa [this] using combeq
-      cases segments₁ using List.reverseRecOn with
-      | nil =>
-        simp [*] at *
-        refine .indirect walka bih rfl
-      | append_singleton body₁ bum₁ ih₁ =>
-        simp [*] at *
-        refine .indirect walka bih ?_
-        simp
+      refine .direct dref
+    | append_singleton body' bum' ih' =>
+      have : b :: (body' ++ [bum']) = (b :: body') ++ [bum'] := by grind
+      rw [this] at hsegeq
+      have : b :: body' = body := List.append_inj_left' hsegeq rfl
+      subst_eqs
+      simp at hsegeq
+      subst_eqs
+      refine .tail dref (ih rfl)
 
 omit [Fintype V] [DecidableEq V] in
-/-- Induction principle for `FullWalk` that works by adding one segment at a time from the back.
+/-- Reverse induction principle for `FullWalk`. Like `List.reverseRecOn`, this lets you do induction
+from the back of the walk, peeling off the last segment at each step.
 
-To prove a property about an arbitrary `FullWalk ctx origin dest segments`,
-it suffices to prove it for:
-1. Direct walks (empty segments)
-2. Show that if it holds for a walk from `origin` to `bum` with segments `body`,
-   and there's a direct reference from `bum` to `dest`,
-   then it holds for the walk from `origin` to `dest` with segments `body ++ [bum]`.
+To prove a property about an arbitrary `FullWalk graph origin dest segments`, it suffices to prove:
+1. The base case for direct walks (empty segments)
+2. The inductive case: if it holds for a walk from `origin` to `penult` with segments `init`,
+   and there's a direct reference from `penult` to `dest`,
+   then it holds for the walk from `origin` to `dest` with segments `init ++ [penult]`.
 -/
--- @[elab_as_elim]
+@[elab_as_elim]
 theorem FullWalk.snoc_induction
-    {motive : ∀ (graph : Graph) (origin dest : V) (segments : List V), FullWalk graph origin dest segments → Prop}
-    (direct : ∀ {graph} {origin} {dest} (h : DirectRef graph origin dest),
-              motive graph origin dest [] (.direct h))
-    (snoc : ∀ {graph} {origin} {bum} {dest} {body}
+    {motive : ∀ (origin dest : V) (segments : List V), FullWalk graph origin dest segments → Prop}
+    {origin dest : V} {segments : List V}
+    (h : FullWalk graph origin dest segments)
+    (direct : ∀ {origin} {dest} (hdref : DirectRef graph origin dest),
+              motive origin dest [] (.direct hdref))
+    (snoc : ∀ {origin} {bum} {dest} {body}
               (hbody : FullWalk graph origin bum body)
               (hdirect : DirectRef graph bum dest),
-              motive graph origin bum body hbody →
-              motive graph origin dest (body ++ [bum])
-                (.indirect hbody (.direct hdirect) (by simp)))
-    {graph origin dest segments}
-    (h : FullWalk graph origin dest segments)
-    : motive graph origin dest segments h := by
+              motive origin bum body hbody →
+              motive origin dest (body ++ [bum])
+                (hbody.snoc hdirect))
+    : motive origin dest segments h := by
   induction segments using List.reverseRecOn generalizing dest with
   | nil =>
     cases h with
-    | direct dref => exact @direct graph origin dest dref
-    | indirect walka walkb combeq =>
-      simp at combeq
-  | append_singleton body bum ih =>
-    -- Get the "init" walk from origin to bum
-    have hbody : FullWalk graph origin bum body := h.snoc_arse_segment rfl
-    -- Get the direct reference from bum to dest
-    have hdref := h.ref_segment_arse rfl
-    -- Apply IH to the body walk
-    have hbody_ih := ih hbody
-    -- Use proof irrelevance to match the walk structure
-    have : h = .indirect hbody (.direct hdref) (by simp) := by
-      apply proof_irrel
-    rw [this]
-    exact @snoc graph origin bum dest body hbody hdref hbody_ih
-
-
--- Example usages of snoc_induction
-
-/-- Example: For any walk, the origin can reach the destination (using snoc_induction) -/
-example (h : FullWalk graph origin dest segments) : Walk graph origin dest := by
-  induction h using FullWalk.snoc_induction with
-  | direct hdirect =>
-    exact .direct hdirect
-  | snoc hbody hdirect ih =>
-    exact .indirect ih (.direct hdirect)
-
-/-- Example: The origin can reach any segment in the walk (dual of cons version) -/
-example (h : FullWalk ctx origin dest segments) (hseg : seg ∈ segments) : ∃ segs, FullWalk ctx origin seg segs := by
-  induction h using FullWalk.snoc_induction with
-  | @direct graph origin dest hdirect =>
-    simp at hseg
-  | @snoc graph origin bum dest body hbody hdirect ih =>
-    simp at hseg
-    rcases hseg with hseg | rfl
-    · exact ih hseg
-    · exact ⟨body, hbody⟩
-
-/-- Example: Non-empty segments implies last segment links to dest -/
-example (h : FullWalk ctx origin dest segments) (hne : segments ≠ []) :
-    ∃ body bum, segments = body ++ [bum] ∧ DirectRef ctx bum dest := by
-  induction h using FullWalk.snoc_induction with
-  | direct hdirect =>
-    simp at hne
-  | @snoc ctx origin bum dest body hbody hdirect ih =>
-    exact ⟨body, bum, rfl, hdirect⟩
+    | direct dref => exact direct dref
+  | append_singleton init penult ih =>
+    have hwalk : FullWalk graph origin penult init := h.snoc_arse_segment rfl
+    have hdref : DirectRef graph penult dest := h.ref_segment_arse rfl
+    have hmotive := snoc hwalk hdref (ih hwalk)
+    have heq : h = hwalk.snoc hdref := by apply proof_irrel
+    rw [heq]
+    exact hmotive
 
 
 
 
 
-/-- Make a path from the origin to the first segment of the second one -/
-@[grind →]
-theorem FullWalk.cons_slice_head_of_h₂
-  (h₁ : FullWalk ctx a b segments₁)
-  (h₂ : FullWalk ctx b c (head₂ :: tail₂))
-  : FullWalk ctx a head₂ (segments₁ ++ [b]) := by
-  induction h₁ with
-  | direct h =>
-    simp
-    expose_names
-    refine .indirect (segments₁:=[]) (segments₂:=[]) (b:=dest) (.direct h) ?_ ?_
-    · have := FullWalk.segments_structure h₂
-      simp at this
-      refine .direct this.left
-    · simp
-  | indirect walka walkb combeq aih bih =>
-    expose_names
-    have := bih h₂
-    have := FullWalk.indirect (combinedSegments:=segments₁_1 ++ [b_1] ++ segments₂ ++ [c_1]) walka this (by simp)
-    simp [*] at this ⊢
-    exact this
+
+
+
+-- omit [Fintype V] [DecidableEq V] in
+-- /-- Induction principle for `FullWalk` that works by adding one segment at a time from the back.
+
+-- To prove a property about an arbitrary `FullWalk ctx origin dest segments`,
+-- it suffices to prove it for:
+-- 1. Direct walks (empty segments)
+-- 2. Show that if it holds for a walk from `origin` to `bum` with segments `body`,
+--    and there's a direct reference from `bum` to `dest`,
+--    then it holds for the walk from `origin` to `dest` with segments `body ++ [bum]`.
+-- -/
+-- -- @[elab_as_elim]
+-- theorem FullWalk.snoc_induction
+--     {motive : ∀ (graph : Graph) (origin dest : V) (segments : List V), FullWalk graph origin dest segments → Prop}
+--     (direct : ∀ {graph} {origin} {dest} (h : DirectRef graph origin dest),
+--               motive graph origin dest [] (.direct h))
+--     (snoc : ∀ {graph} {origin} {bum} {dest} {body}
+--               (hbody : FullWalk graph origin bum body)
+--               (hdirect : DirectRef graph bum dest),
+--               motive graph origin bum body hbody →
+--               motive graph origin dest (body ++ [bum])
+--                 -- (.tail hbody (.direct hdirect) (by simp))
+--                 )
+--     {graph origin dest segments}
+--     (h : FullWalk graph origin dest segments)
+--     : motive graph origin dest segments h := by
+--   induction segments using List.reverseRecOn generalizing dest with
+--   | nil =>
+--     cases h with
+--     | direct dref => exact @direct graph origin dest dref
+--     | indirect walka walkb combeq =>
+--       simp at combeq
+--   | append_singleton body bum ih =>
+--     -- Get the "init" walk from origin to bum
+--     have hbody : FullWalk graph origin bum body := h.snoc_arse_segment rfl
+--     -- Get the direct reference from bum to dest
+--     have hdref := h.ref_segment_arse rfl
+--     -- Apply IH to the body walk
+--     have hbody_ih := ih hbody
+--     -- Use proof irrelevance to match the walk structure
+--     have : h = .indirect hbody (.direct hdref) (by simp) := by
+--       apply proof_irrel
+--     rw [this]
+--     exact @snoc graph origin bum dest body hbody hdref hbody_ih
+
+
+-- -- Example usages of snoc_induction
+
+-- /-- Example: For any walk, the origin can reach the destination (using snoc_induction) -/
+-- example (h : FullWalk graph origin dest segments) : Walk graph origin dest := by
+--   induction h using FullWalk.snoc_induction with
+--   | direct hdirect =>
+--     exact .direct hdirect
+--   | snoc hbody hdirect ih =>
+--     exact .indirect ih (.direct hdirect)
+
+-- /-- Example: The origin can reach any segment in the walk (dual of cons version) -/
+-- example (h : FullWalk ctx origin dest segments) (hseg : seg ∈ segments) : ∃ segs, FullWalk ctx origin seg segs := by
+--   induction h using FullWalk.snoc_induction with
+--   | @direct graph origin dest hdirect =>
+--     simp at hseg
+--   | @snoc graph origin bum dest body hbody hdirect ih =>
+--     simp at hseg
+--     rcases hseg with hseg | rfl
+--     · exact ih hseg
+--     · exact ⟨body, hbody⟩
+
+-- /-- Example: Non-empty segments implies last segment links to dest -/
+-- example (h : FullWalk ctx origin dest segments) (hne : segments ≠ []) :
+--     ∃ body bum, segments = body ++ [bum] ∧ DirectRef ctx bum dest := by
+--   induction h using FullWalk.snoc_induction with
+--   | direct hdirect =>
+--     simp at hne
+--   | @snoc ctx origin bum dest body hbody hdirect ih =>
+--     exact ⟨body, bum, rfl, hdirect⟩
 
 
 
 
-/-- Make a path from the first segment of the first one to the end of the 2nd one -/
-@[grind →]
-theorem FullWalk.cons_slice_last_of_h₁
-  (h₁ : FullWalk ctx a b (head₁ :: tail₁))
-  (h₂ : FullWalk ctx b c segments₂)
-  : FullWalk ctx head₁ c (tail₁ ++ [b] ++ segments₂) := by
-  have := FullWalk.segments_structure h₂
-  rcases this with ⟨heq,dref⟩ | ⟨b',tailSegs,segeq,dref⟩
-  · subst_eqs
-    simp [*]
-    have := FullWalk.cons_head_segment h₁ rfl
-    refine .indirect this h₂ ?_
-    simp
-  · have := FullWalk.cons_head_segment h₁ rfl
-    refine .indirect this h₂ ?_
-    simp
+
+-- /-- Make a path from the origin to the first segment of the second one -/
+-- @[grind →]
+-- theorem FullWalk.cons_slice_head_of_h₂
+--   (h₁ : FullWalk ctx a b segments₁)
+--   (h₂ : FullWalk ctx b c (head₂ :: tail₂))
+--   : FullWalk ctx a head₂ (segments₁ ++ [b]) := by
+--   induction h₁ with
+--   | direct h =>
+--     simp
+--     expose_names
+--     refine .indirect (segments₁:=[]) (segments₂:=[]) (b:=dest) (.direct h) ?_ ?_
+--     · have := FullWalk.segments_structure h₂
+--       simp at this
+--       refine .direct this.left
+--     · simp
+--   | indirect walka walkb combeq aih bih =>
+--     expose_names
+--     have := bih h₂
+--     have := FullWalk.indirect (combinedSegments:=segments₁_1 ++ [b_1] ++ segments₂ ++ [c_1]) walka this (by simp)
+--     simp [*] at this ⊢
+--     exact this
+
+
+
+
+-- /-- Make a path from the first segment of the first one to the end of the 2nd one -/
+-- @[grind →]
+-- theorem FullWalk.cons_slice_last_of_h₁
+--   (h₁ : FullWalk ctx a b (head₁ :: tail₁))
+--   (h₂ : FullWalk ctx b c segments₂)
+--   : FullWalk ctx head₁ c (tail₁ ++ [b] ++ segments₂) := by
+--   have := FullWalk.segments_structure h₂
+--   rcases this with ⟨heq,dref⟩ | ⟨b',tailSegs,segeq,dref⟩
+--   · subst_eqs
+--     simp [*]
+--     have := FullWalk.cons_head_segment h₁ rfl
+--     refine .indirect this h₂ ?_
+--     simp
+--   · have := FullWalk.cons_head_segment h₁ rfl
+--     refine .indirect this h₂ ?_
+--     simp
 
 
 
@@ -781,34 +874,104 @@ theorem FullWalk.from_start_to_seg'
 theorem FullWalk.get_orig_nin_segs
   (h : FullWalk ctx origin dest segments)
   : ∃ (removed : Nat), ∃ segs, ∃ (_prf : segs = segments.drop removed), origin ∉ segs ∧ FullWalk ctx origin dest segs := by
-  cases h using FullWalk.cons_induction with
-  | direct dref =>
-    simp
-    refine .direct dref
-  | cons dref tail =>
-    expose_names
-    clear h
-    if hin : origin ∈ head :: tail_1 then
-      simp at hin
-      rcases hin with heq | hin
-      · subst_eqs
-        have ⟨removed, segs, hsegeq, nin, fw⟩ := tail.get_orig_nin_segs
-        exists removed+1,segs, (by simp [*])
-      · have ⟨i,hilen,heq⟩ := tail_1.getElem_of_mem hin
-        have := tail.from_seg_to_end i hilen
-        rw [heq] at this
-        have ⟨removed, segs, hsegeq, nin, fw⟩ := this.get_orig_nin_segs
-        exists i+removed+1+1, segs, ?_
-        · rw [hsegeq]; simp; grind
-        · tauto
+  have aux : ∀ (n : Nat) (origin' dest' : _) (segments' : List _),
+      segments'.length ≤ n →
+      FullWalk ctx origin' dest' segments' →
+      ∃ (removed : Nat), ∃ segs, ∃ (_prf : segs = segments'.drop removed), origin' ∉ segs ∧ FullWalk ctx origin' dest' segs := by
+    intro n
+    induction n with
+    | zero =>
+      intro origin dest segments hlen h
+      cases h with
+      | direct dref =>
+        exists 0, [], rfl
+        simp
+        exact .direct dref
+      | tail _ _ =>
+        simp at hlen
+    | succ n ih =>
+      intro origin dest segments hlen h
+      cases h with
+      | direct dref =>
+        exists 0, [], rfl
+        simp
+        exact .direct dref
+      | tail dref tail_walk =>
+        rename_i b tail_segs
+        if hin : origin ∈ b :: tail_segs then
+          simp at hin
+          rcases hin with heq | hin
+          · -- origin = b, so tail_walk is a walk from origin to dest
+            subst_eqs
+            have hlt : tail_segs.length ≤ n := by simp at hlen; omega
+            have ⟨removed, segs, hsegeq, nin, fw⟩ := ih origin dest tail_segs hlt tail_walk
+            refine ⟨removed + 1, segs, ?_, ?_, ?_⟩
+            · simp [hsegeq]
+            · exact nin
+            · exact fw
+          · -- origin ∈ tail_segs, extract the suffix walk
+            have ⟨i, hilen, heq⟩ := tail_segs.getElem_of_mem hin
+            have sub_walk := tail_walk.from_seg_to_end i hilen
+            rw [heq] at sub_walk
+            -- sub_walk : FullWalk ctx origin dest (tail_segs.drop (i+1))
+            have hlt : (tail_segs.drop (i + 1)).length ≤ n := by simp at hlen ⊢; omega
+            have ⟨removed, segs, hsegeq, nin, fw⟩ := ih origin dest _ hlt sub_walk
+            simp only [List.drop_drop] at hsegeq
+            have hsegeq' : segs = (b :: tail_segs).drop (i + 1 + 1 + removed) := by
+              grind
+            refine ⟨i + 1 + 1 + removed, segs, hsegeq', ?_, ?_⟩
+            · exact nin
+            · exact fw
+        else
+          exists 0, b :: tail_segs, rfl
+          simp [hin]
+          exact .tail dref tail_walk
+  exact aux segments.length origin dest segments (Nat.le_refl _) h
 
-    else
-      exists 0, head :: tail_1, rfl
-      simp [*]
-      refine .indirect (.direct dref) tail ?_
-      simp
 
-  termination_by segments.length
+
+
+
+-- /-- If the origin is in the segments list, then it's possible to create a walk from origin to dest that's shorter in length and whose segments don't contain origin! -/
+-- theorem FullWalk.get_orig_nin_segs
+--   (h : FullWalk ctx origin dest segments)
+--   : ∃ (removed : Nat), ∃ segs, ∃ (_prf : segs = segments.drop removed), origin ∉ segs ∧ FullWalk ctx origin dest segs := by
+--   induction h with
+--   | direct dref =>
+--     simp
+--     refine .direct dref
+--   | tail dref tail ih  =>
+--     expose_names
+--     if hin : a ∈ b :: segments_1 then
+--       simp at hin
+--       rcases hin with heq | hin
+--       · subst_eqs
+--         have ⟨removed, segs, hsegeq, nin, fw⟩ := ih
+--         exists removed+1,segs, (by simp [*])
+--       · have ⟨i,hilen,heq⟩ := segments_1.getElem_of_mem hin
+--         have := tail.from_seg_to_end i hilen
+--         rw [heq] at this
+--         have ⟨removed, segs, hsegeq, nin, fw⟩ := ih
+--         exists removed+1,segs
+--         simp
+
+--         -- exists i+removed+1+1, segs, ?_
+--         -- · rw [hsegeq]
+--         --   simp
+--         --   grind
+--         -- · tauto
+
+--     else
+--       exists 0, b :: segments, rfl
+--       simp [*]
+--       refine .tail dref tail
+
+--   termination_by segments.length
+
+
+
+
+
 
 
 
@@ -880,8 +1043,7 @@ theorem FullWalk.get_dest_nin_segs
       simp
       have : body_1.reverse.length = body_1.length := by grind
       simp [*]
-      refine .indirect body (.direct dref) ?_
-      simp
+      refine .snoc body dref
 
   termination_by segments.length
 
@@ -988,7 +1150,7 @@ theorem FullWalk.exists_non_dup
       rw [← heq'] at walk2
       -- Combine the walks
       have combined : FullWalk ctx current dest (segments.take i ++ [segments[i]] ++ segments.drop (j + 1)) :=
-        .indirect walk1 walk2 rfl
+        walk1.append walk2
       -- This combined walk is shorter since i < j
       have hlen : (segments.take i ++ [segments[i]] ++ segments.drop (j + 1)).length < segments.length := by
         simp
@@ -1056,7 +1218,7 @@ theorem Walk.decideBool_sound [Fintype V] {current : V}
   | case3 current seenRefs hneq hcurrninseen result ih =>
     simp [result] at h ih
     obtain ⟨child,dref, prf⟩ := h
-    exact ih child (.indirect horigtocurr (.direct dref)) prf
+    exact ih child (horigtocurr.append (.direct dref)) prf
 
 
 
@@ -1091,7 +1253,6 @@ theorem FullWalk.decideBool_complete {current : V}
     | nil =>
       rw [hl] at currtodest
       cases currtodest with
-      | indirect _ _ hh => simp at hh
       | direct dref =>
         exists dest,dref
         unfold Walk.decideBool
@@ -1103,13 +1264,12 @@ theorem FullWalk.decideBool_complete {current : V}
       have walkcurrtohead := Walk.direct drefcurrtohead
 
       apply ih head _ _ shortestWalk (segsprecurr:=segsprecurr++[current]) (segspostcurr:= tail) (by grind) _ (by grind)
-      · refine .indirect horigtocurr walkcurrtohead
+      · refine horigtocurr.append walkcurrtohead
       · simp
         constructor
         · exact walkcurrtohead
         · intro seen seenin
-          refine .indirect ?_ walkcurrtohead
-          exact hseenswalk seen seenin
+          exact (hseenswalk seen seenin).append walkcurrtohead
       · intro seen seenin
         simp at seenin
         rcases seenin with seencurr | seenin
@@ -1192,7 +1352,6 @@ instance Walk.decide [Fintype V]
           | direct h =>
             absurd h
             exact hdirect
-          | indirect _ _ h => simp at h
         | cons head tail =>
           have dref := fw.ref_segment_cons rfl
           have dec := hresult head dref
@@ -1352,8 +1511,7 @@ theorem FullWalk.decideList_completeness [LinearOrder V] {current : V}
         · refine hex segs prf
         · simp at segsplit ⊢
           exact segsplit
-        · refine .indirect hseenswalk (.direct headincurr) ?_
-          simp
+        · simpa using hseenswalk.append (.direct headincurr)
         · grind
   | case4 => grind
 
@@ -1421,7 +1579,7 @@ theorem FullWalk.decideList_sound [LinearOrder V] {current : V}
     have dref : child ∈ (graph current) :=
       (Finset.mem_sort fun a b => a ≤ b).mp dref_sort
     apply ih child
-    · refine .indirect hseenswalk (.direct dref) (by simp)
+    · simpa using hseenswalk.append (.direct dref)
     · have := List.findSome?_eq_some_iff.mp filteredeq
       simp at this
       grind
@@ -1450,8 +1608,8 @@ instance FullWalk.producible [LinearOrder V] (graph : Graph) (origin dest : V) :
       simp [filtered] at hfiltered
       match segs with
       | [] => grind
-      | head :: tail =>
-          have ⟨segs,prf⟩ := fw.decideList_completeness_fresh (current := head) (segspostcurr:=tail) (by simp) nodups
+      | head :: tail' =>
+          have ⟨segs,prf⟩ := fw.decideList_completeness_fresh (current := head) (segspostcurr:=tail') (by simp) nodups
 
           have dref : head ∈ graph origin := by grind
           have := hfiltered _ dref
