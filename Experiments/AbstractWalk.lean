@@ -1414,6 +1414,7 @@ def FullWalk.decideList [Fintype V] [LinearOrder V]
       have nodup : (seenRefs ++ [current]).Nodup := by grind
 
       let filtered :=
+        -- @TODO: get the shortest path by segment length. That way we should be able to create theorems that the returned path is a) the shortest, and b) contains no duplicate segments
         (graph current).sort ( · ≤ ·) |>.findSome? (λ child ↦
           match decideList graph origin child dest (seenRefs ++ [current]) nodup with
           | .noPath => none
