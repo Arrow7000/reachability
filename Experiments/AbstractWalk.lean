@@ -1,5 +1,10 @@
-import Mathlib
 import Experiments.Producible
+import Mathlib.Algebra.GroupWithZero.Nat
+import Mathlib.Algebra.Order.Group.Nat
+import Mathlib.Algebra.Order.Sub.Basic
+import Mathlib.Algebra.Order.ZeroLEOne
+import Mathlib.Data.Finset.Sort
+import Mathlib.Data.Nat.Lattice
 
 section List
 
