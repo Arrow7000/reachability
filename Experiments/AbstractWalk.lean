@@ -303,120 +303,6 @@ lemma FullWalk.segments_structure
     exact ⟨rfl, dref⟩
   | tail dref walk ih => tauto
 
-  -- | indirect walka walkb combeq aih bih =>
-  --   expose_names
-  --   cases walka with
-  --   | direct dref =>
-  --     -- segments₁ = [], so combinedSegments = [b] ++ segments₂ = b :: segments₂
-  --     right
-  --     exists b, segments₂
-  --   | indirect walka1 walka2 combeq1 =>
-  --     -- walka is indirect, so segments₁ ≠ []
-  --     -- Apply IH to walka to get the structure of segments₁
-  --     have ih_result := aih
-  --     cases ih_result with
-  --     | inl h =>
-  --       -- segments₁ = [] ∧ DirectRef ctx (ctx[a]) b
-  --       -- But walka is indirect, so segments₁ = segments₁' ++ [x] ++ segments₂' for some x
-  --       -- This contradicts segments₁ = []
-  --       simp [combeq1] at h
-  --     | inr exists_first =>
-  --       -- ∃ b' tailSegs₁, segments₁ = b' :: tailSegs₁ ∧ DirectRef ctx (ctx[a]) b' ∧ FullWalk ctx b' b tailSegs₁
-  --       obtain ⟨b', tailSegs₁, segs_eq, dref, walk_b'_to_b⟩ := exists_first
-  --       right
-  --       exists b', tailSegs₁ ++ [b] ++ segments₂
-  --       constructor
-  --       · rw [combeq, segs_eq]
-  --         rfl
-  --       · constructor
-  --         · exact dref
-  --         · exact .indirect walk_b'_to_b walkb rfl
-
-
-
-
-
--- omit [Fintype V] [DecidableEq V] in
--- /-- Induction principle for `FullWalk` that works by adding one segment at a time from the front.
-
--- To prove a property about an arbitrary `FullWalk ctx origin dest segments`,
--- it suffices to prove it for:
--- 1. Direct walks (empty segments)
--- 2. Show that if it holds for a walk from `head` to `dest` with segments `tail`,
---    and there's a direct reference from `origin` to `head`,
---    then it holds for the walk from `origin` to `dest` with segments `head :: tail`.
--- -/
--- -- @[elab_as_elim]
--- theorem FullWalk.cons_induction
---     {motive : ∀ (graph : Graph) (origin dest : V) (segments : List V), FullWalk graph origin dest segments → Prop}
---     (direct : ∀ {graph} {origin} {dest} (h : DirectRef graph origin dest),
---               motive graph origin dest [] (.direct h))
---     (cons : ∀ {graph} {origin} {head} {dest} {tail}
---               (hdirect : DirectRef graph origin head)
---               (htail : FullWalk graph head dest tail),
---               motive graph head dest tail htail →
---               motive graph origin dest (head :: tail)
---                 (.indirect (.direct hdirect) htail (by simp)))
---     {graph origin dest segments}
---     (h : FullWalk graph origin dest segments)
---     : motive graph origin dest segments h := by
---   induction segments generalizing origin with
---   | nil =>
---     cases h with
---     | direct dref => exact @direct graph origin dest dref
---     | indirect walka walkb combeq =>
---       simp at combeq
---   | cons head tail ih =>
---     have hstruct := h.segments_structure
---     rcases hstruct with ⟨hempty, _⟩ | ⟨head', tail', hsegeq, hdref, htailwalk⟩
---     · simp at hempty
---     · simp at hsegeq
---       obtain ⟨rfl, rfl⟩ := hsegeq
---       -- We need to show that h equals the reconstructed walk
---       have htail_ih := ih htailwalk
---       -- The tricky part: we need to show h = .indirect (.direct hdref) htailwalk (by simp)
---       -- But we can't directly, so we use proof irrelevance for Prop
---       have : h = .indirect (.direct hdref) htailwalk (by simp) := by
---         apply proof_irrel
---       rw [this]
---       exact @cons graph origin head dest tail hdref htailwalk htail_ih
-
-
-
--- /-- Example 1: For any walk, the origin can reach the destination -/
--- example (h : FullWalk graph origin dest segments) : Walk graph origin dest := by
---   induction h using FullWalk.cons_induction with
---   | direct hdirect =>
---     exact .direct hdirect
---   | cons hdirect htail ih =>
---     exact .indirect (.direct hdirect) ih
-
--- /-- Example 2: The destination can be reached from any segment in the walk -/
--- example (h : FullWalk graph origin dest segments) (hseg : seg ∈ segments) : ∃ segs, FullWalk graph seg dest segs := by
---   induction h using FullWalk.cons_induction with
---   | @direct ctx origin dest hdirect =>
---     simp at hseg
---   | @cons ctx origin head dest tail hdirect htail ih =>
---     simp at hseg
---     rcases hseg with rfl | hseg
---     · exact ⟨tail, htail⟩
---     · exact ih hseg
-
--- /-- Example 3: Non-empty segments implies origin is different from first segment
---     (uses pattern matching after induction) -/
--- example (h : FullWalk ctx origin dest segments) (hne : segments ≠ []) :
---     ∃ head tail, segments = head :: tail ∧ DirectRef ctx origin head := by
---   induction h using FullWalk.cons_induction with
---   | direct hdirect =>
---     simp at hne
---   | @cons ctx origin head dest tail hdirect htail ih =>
---     exact ⟨head, tail, rfl, hdirect⟩
-
-
-
-
-
-
 
 @[grind .]
 theorem FullWalk.ref_iff_dest
@@ -512,14 +398,7 @@ lemma Finset.toAscList_example : Finset.toAscList {5, 3, 8, 1, 9} = [1, 3, 5, 8,
 example (s : Finset ℕ) : True := by
   induction s using Finset.minRecOn with
   | empty => trivial
-  | insert_min a s' ha_notin hlt ih =>
-    -- Here we have access to:
-    -- a : ℕ                        (the minimum element)
-    -- s' : Finset ℕ                (the rest of the set)
-    -- ha_notin : a ∉ s'            (a is not in s')
-    -- hlt : ∀ x ∈ s', a < x        (a is smaller than everything in s')
-    -- ih : True                    (induction hypothesis)
-    trivial
+  | insert_min a s' ha_notin hlt ih => trivial
 
 -- Example 6: Build a witness that uses the ordering
 def Finset.headIfNonempty (s : Finset ℕ) : Option ℕ :=
@@ -667,131 +546,6 @@ theorem FullWalk.snoc_induction
 
 
 
--- omit [Fintype V] [DecidableEq V] in
--- /-- Induction principle for `FullWalk` that works by adding one segment at a time from the back.
-
--- To prove a property about an arbitrary `FullWalk ctx origin dest segments`,
--- it suffices to prove it for:
--- 1. Direct walks (empty segments)
--- 2. Show that if it holds for a walk from `origin` to `bum` with segments `body`,
---    and there's a direct reference from `bum` to `dest`,
---    then it holds for the walk from `origin` to `dest` with segments `body ++ [bum]`.
--- -/
--- -- @[elab_as_elim]
--- theorem FullWalk.snoc_induction
---     {motive : ∀ (graph : Graph) (origin dest : V) (segments : List V), FullWalk graph origin dest segments → Prop}
---     (direct : ∀ {graph} {origin} {dest} (h : DirectRef graph origin dest),
---               motive graph origin dest [] (.direct h))
---     (snoc : ∀ {graph} {origin} {bum} {dest} {body}
---               (hbody : FullWalk graph origin bum body)
---               (hdirect : DirectRef graph bum dest),
---               motive graph origin bum body hbody →
---               motive graph origin dest (body ++ [bum])
---                 -- (.tail hbody (.direct hdirect) (by simp))
---                 )
---     {graph origin dest segments}
---     (h : FullWalk graph origin dest segments)
---     : motive graph origin dest segments h := by
---   induction segments using List.reverseRecOn generalizing dest with
---   | nil =>
---     cases h with
---     | direct dref => exact @direct graph origin dest dref
---     | indirect walka walkb combeq =>
---       simp at combeq
---   | append_singleton body bum ih =>
---     -- Get the "init" walk from origin to bum
---     have hbody : FullWalk graph origin bum body := h.snoc_arse_segment rfl
---     -- Get the direct reference from bum to dest
---     have hdref := h.ref_segment_arse rfl
---     -- Apply IH to the body walk
---     have hbody_ih := ih hbody
---     -- Use proof irrelevance to match the walk structure
---     have : h = .indirect hbody (.direct hdref) (by simp) := by
---       apply proof_irrel
---     rw [this]
---     exact @snoc graph origin bum dest body hbody hdref hbody_ih
-
-
--- -- Example usages of snoc_induction
-
--- /-- Example: For any walk, the origin can reach the destination (using snoc_induction) -/
--- example (h : FullWalk graph origin dest segments) : Walk graph origin dest := by
---   induction h using FullWalk.snoc_induction with
---   | direct hdirect =>
---     exact .direct hdirect
---   | snoc hbody hdirect ih =>
---     exact .indirect ih (.direct hdirect)
-
--- /-- Example: The origin can reach any segment in the walk (dual of cons version) -/
--- example (h : FullWalk ctx origin dest segments) (hseg : seg ∈ segments) : ∃ segs, FullWalk ctx origin seg segs := by
---   induction h using FullWalk.snoc_induction with
---   | @direct graph origin dest hdirect =>
---     simp at hseg
---   | @snoc graph origin bum dest body hbody hdirect ih =>
---     simp at hseg
---     rcases hseg with hseg | rfl
---     · exact ih hseg
---     · exact ⟨body, hbody⟩
-
--- /-- Example: Non-empty segments implies last segment links to dest -/
--- example (h : FullWalk ctx origin dest segments) (hne : segments ≠ []) :
---     ∃ body bum, segments = body ++ [bum] ∧ DirectRef ctx bum dest := by
---   induction h using FullWalk.snoc_induction with
---   | direct hdirect =>
---     simp at hne
---   | @snoc ctx origin bum dest body hbody hdirect ih =>
---     exact ⟨body, bum, rfl, hdirect⟩
-
-
-
-
-
--- /-- Make a path from the origin to the first segment of the second one -/
--- @[grind →]
--- theorem FullWalk.cons_slice_head_of_h₂
---   (h₁ : FullWalk ctx a b segments₁)
---   (h₂ : FullWalk ctx b c (head₂ :: tail₂))
---   : FullWalk ctx a head₂ (segments₁ ++ [b]) := by
---   induction h₁ with
---   | direct h =>
---     simp
---     expose_names
---     refine .indirect (segments₁:=[]) (segments₂:=[]) (b:=dest) (.direct h) ?_ ?_
---     · have := FullWalk.segments_structure h₂
---       simp at this
---       refine .direct this.left
---     · simp
---   | indirect walka walkb combeq aih bih =>
---     expose_names
---     have := bih h₂
---     have := FullWalk.indirect (combinedSegments:=segments₁_1 ++ [b_1] ++ segments₂ ++ [c_1]) walka this (by simp)
---     simp [*] at this ⊢
---     exact this
-
-
-
-
--- /-- Make a path from the first segment of the first one to the end of the 2nd one -/
--- @[grind →]
--- theorem FullWalk.cons_slice_last_of_h₁
---   (h₁ : FullWalk ctx a b (head₁ :: tail₁))
---   (h₂ : FullWalk ctx b c segments₂)
---   : FullWalk ctx head₁ c (tail₁ ++ [b] ++ segments₂) := by
---   have := FullWalk.segments_structure h₂
---   rcases this with ⟨heq,dref⟩ | ⟨b',tailSegs,segeq,dref⟩
---   · subst_eqs
---     simp [*]
---     have := FullWalk.cons_head_segment h₁ rfl
---     refine .indirect this h₂ ?_
---     simp
---   · have := FullWalk.cons_head_segment h₁ rfl
---     refine .indirect this h₂ ?_
---     simp
-
-
-
-
-
 
 @[grind →]
 theorem FullWalk.from_seg_to_end
@@ -932,46 +686,6 @@ theorem FullWalk.get_orig_nin_segs
           simp [hin]
           exact .tail dref tail_walk
   exact aux segments.length origin dest segments (Nat.le_refl _) h
-
-
-
-
-
--- /-- If the origin is in the segments list, then it's possible to create a walk from origin to dest that's shorter in length and whose segments don't contain origin! -/
--- theorem FullWalk.get_orig_nin_segs
---   (h : FullWalk ctx origin dest segments)
---   : ∃ (removed : Nat), ∃ segs, ∃ (_prf : segs = segments.drop removed), origin ∉ segs ∧ FullWalk ctx origin dest segs := by
---   induction h with
---   | direct dref =>
---     simp
---     refine .direct dref
---   | tail dref tail ih  =>
---     expose_names
---     if hin : a ∈ b :: segments_1 then
---       simp at hin
---       rcases hin with heq | hin
---       · subst_eqs
---         have ⟨removed, segs, hsegeq, nin, fw⟩ := ih
---         exists removed+1,segs, (by simp [*])
---       · have ⟨i,hilen,heq⟩ := segments_1.getElem_of_mem hin
---         have := tail.from_seg_to_end i hilen
---         rw [heq] at this
---         have ⟨removed, segs, hsegeq, nin, fw⟩ := ih
---         exists removed+1,segs
---         simp
-
---         -- exists i+removed+1+1, segs, ?_
---         -- · rw [hsegeq]
---         --   simp
---         --   grind
---         -- · tauto
-
---     else
---       exists 0, b :: segments, rfl
---       simp [*]
---       refine .tail dref tail
-
---   termination_by segments.length
 
 
 
@@ -1388,8 +1102,129 @@ instance HasCycle.decide (ctx : Graph) (i : V) :
 
 
 
+-- def List.minBy [LinearOrder α] (l : List α) : Option α :=
+--     match l with
+--     | [] => none
+--     | head :: tail => minBy' head tail
+--   where
+--   minBy' (minSoFar : α) : List α → α
+--   | [] => minSoFar
+--   | head :: tail => minBy' (min head minSoFar) tail
 
 
+
+
+-- def List.minBy (comp : α → α → Ordering) (l : List α) : Option α :=
+--     match l with
+--     | [] => none
+--     | head :: tail => minBy' head tail
+--   where
+--   minBy' (minSoFar : α) : List α → α
+--   | [] => minSoFar
+--   | head :: tail =>
+--     let new :=
+--       match comp minSoFar head with
+--       | .lt => minSoFar
+--       | .eq => minSoFar
+--       | .gt => head
+
+--     minBy' new tail
+
+
+
+-- theorem List.minBy_min {l : List α} : l.minBy comp = some m → ∀ item ∈ l, comp m item ≠ Ordering.gt := by
+--   intro prem
+--   simp [minBy] at prem
+--   -- induction l using minBy.minBy'.induct (comp:=comp) (α := α) with
+--   cases l with
+--   | nil => simp
+--   | cons head tail =>
+--     induction head, tail using minBy.minBy'.induct (comp:=comp) with
+--     | case1 minSoFar =>
+--       simp at prem ⊢
+--       simp [minBy.minBy'] at prem
+--       subst prem
+
+--     -- simp
+--     -- exact minBy.minBy'.induct (motive := fun head' tail' ↦ ∀ item ∈ head' :: tail', comp m item ≠ Ordering.gt) (comp := comp)
+--     --   (case1 := by
+--     --     simp at prem ⊢
+--     --     intro minSoFar
+--     --     unfold minBy.minBy' at prem
+--     --     simp at prem
+
+--     --     )
+--     -- constructor
+--     -- ·
+--     --   simp at prem
+
+
+
+--     -- sorry
+
+
+
+
+
+def List.minBy (score : α → Nat) (l : List α) : Option α :=
+    match l with
+    | [] => none
+    | head :: tail => minBy' head tail
+  where
+  minBy' (minSoFar : α) : List α → α
+  | [] => minSoFar
+  | head :: tail =>
+    let new :=
+      if score head < score minSoFar then head
+      else minSoFar
+
+    minBy' new tail
+
+
+
+theorem List.minBy_min {l : List α} : l.minBy score = some m → ∀ item ∈ l, score m ≤ score item := by
+  intro prem
+  simp [minBy] at prem
+  cases l with
+  | nil => simp
+  | cons head tail =>
+    induction head, tail using minBy.minBy'.induct (score:=score) with
+    | case1 minSoFar =>
+      simp at prem ⊢
+      simp [minBy.minBy'] at prem
+      subst prem
+      simp
+    | case2 minSoFar head tail new ih =>
+      simp at ih prem ⊢
+      simp [minBy.minBy'] at prem
+      have := ih prem
+      grind
+
+
+private theorem List.minBy_minBy'_mem {score : α → Nat} (a : α) (l : List α) :
+    minBy.minBy' score a l ∈ a :: l := by
+  induction l generalizing a with
+  | nil => simp [minBy.minBy']
+  | cons h t ih =>
+    unfold minBy.minBy'
+    have := ih (if score h < score a then h else a)
+    simp only [List.mem_cons] at this ⊢
+    rcases this with heq | hmem
+    · rw [heq]; split <;> simp
+    · right; right; exact hmem
+
+theorem List.minBy_eq_none {l : List α} {score : α → Nat} (h : l.minBy score = none) : l = [] := by
+  cases l with
+  | nil => rfl
+  | cons a as => simp [minBy] at h
+
+theorem List.minBy_mem {l : List α} {score : α → Nat} (h : l.minBy score = some m) : m ∈ l := by
+  cases l with
+  | nil => simp [minBy] at h
+  | cons a as =>
+    simp [minBy] at h
+    subst h
+    exact minBy_minBy'_mem a as
 
 
 
@@ -1420,12 +1255,20 @@ def FullWalk.decideList [Fintype V] [LinearOrder V]
 
       let filtered :=
         -- @TODO: get the shortest path by segment length. That way we should be able to create theorems that the returned path is a) the shortest, and b) contains no duplicate segments
-        (graph current).sort ( · ≤ ·) |>.findSome? (λ child ↦
-          match decideList graph origin child dest (seenRefs ++ [current]) nodup with
-          | .noPath => none
-          | .hasPath paths => some (child, paths))
+        -- (graph current).sort ( · ≤ ·) |>.findSome? (λ child ↦
+        --   match decideList graph origin child dest (seenRefs ++ [current]) nodup with
+        --   | .noPath => none
+        --   | .hasPath paths => some (child, paths))
+        (graph current).sort ( · ≤ ·)
+          |>.filterMap (λ child ↦
+            match decideList graph origin child dest (seenRefs ++ [current]) nodup with
+            | .noPath => none
+            | .hasPath paths => some (child, paths))
 
-      match filtered with
+      let shortest :=
+        List.minBy (λ ⟨_,l⟩ ↦ l.length) filtered
+
+      match shortest with
       | none => .noPath
       | some (_child, paths) => .hasPath paths
 
@@ -1438,24 +1281,6 @@ def FullWalk.decideList [Fintype V] [LinearOrder V]
 
 
 
-
--- /-- If we return a `.hasPath`, then the `segments` is `seenRefs` reversed-/
--- theorem FullWalk.decideList_segs_seens_rev {origin : V}
---   (segsunique : (origin :: segments).Nodup ∧ (dest :: segments).Nodup)
---   (h : FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath segments)
---   : segments = seenRefs.reverse := by
---   fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup generalizing segments with
---   | case1 seenRefs seensNodup =>
---     simp at h
---     tauto
---   | case2 => simp at h
---   | case3 => simp at h
---   | @case4 curr seenRefs seensNodup hncurrs hcurrinseen results filtered headPaths _tail hfiltered ih =>
---     simp at h
---     subst_eqs
---     simp [filtered] at hfiltered
---     simp [results] at hfiltered
---     -- have :=
 
 
 lemma FullWalk.decideList_if_not_path_no_path [LinearOrder V] : (∀ (paths : List V), ¬FullWalk.decideList graph origin head dest segments nodup = FullWalkResult.hasPath paths) → FullWalk.decideList graph origin head dest segments nodup = .noPath := by
@@ -1484,41 +1309,34 @@ theorem FullWalk.decideList_completeness [LinearOrder V] {current : V}
     simp
     exact noOverlap current h_1 (List.Mem.head segspostcurr)
 
-  | @case3 current seenRefs seenNodup hncurreqdest currninseens nodup filtered filteredemp ih =>
-    simp [filtered] at filteredemp
-    simp
+  | @case3 current seenRefs seenNodup hncurreqdest currninseens nodup filtered shortest hshortest ih =>
+    have hfilt : filtered = [] := List.minBy_eq_none hshortest
+    exfalso
     cases segspostcurr with
     | nil =>
       simp [segsplit] at hcurrinseg fw
       have destincurr : dest ∈ graph current := by grind
-      have := filteredemp _ destincurr
-      unfold decideList at this
-      simp only [↓reduceDIte, reduceCtorEq] at this
+      have hdec : decideList graph origin dest dest (seenRefs ++ [current]) nodup = .hasPath (seenRefs ++ [current]) := by
+        unfold decideList; simp
+      have : (dest, seenRefs ++ [current]) ∈ filtered := by
+        apply List.mem_filterMap.mpr
+        exact ⟨dest, (Finset.mem_sort _).mpr destincurr, by simp [hdec]⟩
+      rw [hfilt] at this
+      simp at this
     | cons head tail =>
       have headincurr : head ∈ graph current := by
         rw [segsplit] at fw
         have := fw.from_seg_to_end segsprecurr.length (by grind)
         simp at this
         grind
-
-      have := filteredemp _ headincurr
-      have nodup : (seenRefs ++ [current]).Nodup := by grind
-      by_cases hex : ∃ path, decideList graph origin head dest (seenRefs ++ [current]) nodup = .hasPath path
-      · obtain ⟨path,dec⟩ := hex
-        rw [dec] at this
-        simp at this
-      · simp at hex
-        have dec : decideList graph origin head dest (seenRefs ++ [current]) nodup = FullWalkResult.noPath := decideList_if_not_path_no_path hex
-
-        rw [dec] at this
-        simp at this
-        have headinsegs : head ∈ segments := by grind
-        have ⟨segs,prf⟩ := ih (segsprecurr:=segsprecurr++[current]) (segspostcurr:=tail) head ?_ segsunique ?_ fw ?_ headinsegs
-        · refine hex segs prf
-        · simp at segsplit ⊢
-          exact segsplit
-        · simpa using hseenswalk.append (.direct headincurr)
-        · grind
+      have ⟨segs, prf⟩ := ih (segsprecurr:=segsprecurr++[current]) (segspostcurr:=tail) head
+        (by simp at segsplit ⊢; exact segsplit) segsunique
+        (by simpa using hseenswalk.append (.direct headincurr)) fw (by grind) (by grind : head ∈ segments)
+      have : (head, segs) ∈ filtered := by
+        apply List.mem_filterMap.mpr
+        exact ⟨head, (Finset.mem_sort _).mpr headincurr, by simp [prf]⟩
+      rw [hfilt] at this
+      simp at this
   | case4 => grind
 
 
@@ -1576,19 +1394,18 @@ theorem FullWalk.decideList_sound [LinearOrder V] {current : V}
 
   | case2 => grind
   | case3 => grind
-  | @case4 current seenRefs seenNodup hncurreqdest currninseens nodup filtered child paths filteredeq ih =>
+  | @case4 current seenRefs seenNodup hncurreqdest currninseens nodup filtered shortest child_v segs hshortest ih =>
     simp at h
     subst_eqs
-    simp [filtered] at filteredeq
-    have dref_sort : child ∈ (graph current).sort :=
-      findSome?_child_mem filteredeq
-    have dref : child ∈ (graph current) :=
-      (Finset.mem_sort fun a b => a ≤ b).mp dref_sort
-    apply ih child
-    · simpa using hseenswalk.append (.direct dref)
-    · have := List.findSome?_eq_some_iff.mp filteredeq
-      simp at this
-      grind
+    have hmem := List.minBy_mem hshortest
+    obtain ⟨child', hchild_sort, hdl⟩ := List.mem_filterMap.mp hmem
+    cases hresult : decideList graph origin child' dest (seenRefs ++ [current]) nodup with
+    | noPath => simp [hresult] at hdl
+    | hasPath p =>
+      simp [hresult] at hdl
+      obtain ⟨h1, h2⟩ := hdl
+      subst h1; subst h2
+      exact ih _ (by simpa using hseenswalk.append (.direct ((Finset.mem_sort _).mp hchild_sort))) hresult
 
 
 
@@ -1596,43 +1413,361 @@ theorem FullWalk.decideList_sound [LinearOrder V] {current : V}
 
 
 
-instance FullWalk.producible [LinearOrder V] (graph : Graph) (origin dest : V) : Producible (FullWalk graph origin dest) := by
-  by_cases hdirect : dest ∈ graph origin
-  · refine .possible [] ?_
-    refine .direct hdirect
-  · let filtered :=
-      (graph origin).sort.findSome? (λ child ↦
+/-- The shortest walk from `origin` to `dest`: returns the segments (excluding both
+endpoints) of a shortest walk, or `none` if no walk exists.
+
+If `dest` is directly reachable from `origin`, returns `some []`. Otherwise tries every
+child of `origin` and picks the one yielding the shortest decideList path. -/
+def FullWalk.shortest [LinearOrder V] (graph : Graph (V:=V)) (origin dest : V) : Option (List V) :=
+  if dest ∈ graph origin then some [] else
+    (graph origin).sort (· ≤ ·)
+    |>.filterMap (fun child =>
         match decideList graph origin child dest [] (by simp) with
         | .noPath => none
-        | .hasPath paths => some (child, paths))
+        | .hasPath ps => some ps)
+    |> List.minBy (·.length)
 
-    match hfiltered : filtered with
-    | none =>
-      refine .impossible ?_
-      intro segs fw
-      obtain ⟨segs, nodups, fw⟩ := fw.exists_non_dup
-      simp [filtered] at hfiltered
-      match segs with
-      | [] => grind
-      | head :: tail' =>
-          have ⟨segs,prf⟩ := fw.decideList_completeness_fresh (current := head) (segspostcurr:=tail') (by simp) nodups
 
-          have dref : head ∈ graph origin := by grind
-          have := hfiltered _ dref
-          simp at this prf
-          rw [prf] at this
-          simp at this
+/-- Soundness: if `shortest` returns `some paths`, those segments form a valid walk. -/
+theorem FullWalk.shortest_walk [LinearOrder V] {graph : Graph} {origin dest : V}
+    {paths : List V} (h : FullWalk.shortest graph origin dest = some paths)
+    : FullWalk graph origin dest paths := by
+  unfold shortest at h
+  split at h
+  · rename_i hdirect
+    simp at h
+    subst h
+    exact .direct hdirect
+  · have hmem := List.minBy_mem h
+    obtain ⟨child, hchild_sort, hmatch⟩ := List.mem_filterMap.mp hmem
+    have dref : child ∈ graph origin := (Finset.mem_sort _).mp hchild_sort
+    cases hres : decideList graph origin child dest [] (by simp) with
+    | noPath => simp [hres] at hmatch
+    | hasPath p =>
+      simp [hres] at hmatch
+      subst hmatch
+      exact decideList_sound (.direct dref) hres
 
-    | some (_child, paths) =>
-      simp [filtered] at hfiltered
-      refine .possible paths ?_
-      clear filtered
-      have dref_sort := findSome?_child_mem hfiltered
-      have dref := (Finset.mem_sort fun a b => a ≤ b).mp dref_sort
-      have := List.findSome?_eq_some_iff.mp hfiltered
-      simp at this
-      obtain ⟨l₁,a, prf₁, prf₂, prf₃⟩ := this
-      have : a = _child := by grind
-      subst_eqs
-      have dec : decideList graph origin _child dest [] (by simp) = .hasPath paths := by grind
-      refine FullWalk.decideList_sound (.direct dref) dec
+
+/-- Completeness: if any simple-path walk from `origin` to `dest` exists, `shortest`
+returns some path. -/
+theorem FullWalk.shortest_isSome_of_walk [LinearOrder V] {graph : Graph} {origin dest : V}
+    {altSegments : List V}
+    (fwAlt : FullWalk graph origin dest altSegments)
+    (origin_nodup : (origin :: altSegments).Nodup)
+    (dest_nodup : (dest :: altSegments).Nodup)
+    : (FullWalk.shortest graph origin dest).isSome := by
+  unfold shortest
+  by_cases hdirect : dest ∈ graph origin
+  · simp [hdirect]
+  · simp only [hdirect, ↓reduceIte]
+    cases altSegments with
+    | nil =>
+      cases fwAlt with
+      | direct hd => exact absurd hd hdirect
+    | cons head tail =>
+      have dref : head ∈ graph origin := fwAlt.ref_segment_cons rfl
+      have head_sort : head ∈ (graph origin).sort (· ≤ ·) := (Finset.mem_sort _).mpr dref
+      have ⟨ps, hdec⟩ := fwAlt.decideList_completeness_fresh (current := head)
+        (segspostcurr := tail) (by simp) ⟨origin_nodup, dest_nodup⟩
+      have hdec' : decideList graph origin head dest [] (by simp) = .hasPath ps := hdec
+      have hmem : ps ∈ ((graph origin).sort (· ≤ ·) |>.filterMap (fun child =>
+          match decideList graph origin child dest [] (by simp) with
+          | .noPath => none
+          | .hasPath ps => some ps)) := by
+        apply List.mem_filterMap.mpr
+        refine ⟨head, head_sort, ?_⟩
+        simp [hdec']
+      cases hminby : ((graph origin).sort (· ≤ ·) |>.filterMap (fun child =>
+          match decideList graph origin child dest [] (by simp) with
+          | .noPath => none
+          | .hasPath ps => some ps)) |> List.minBy (·.length) with
+      | none =>
+        have hempty := List.minBy_eq_none hminby
+        rw [hempty] at hmem
+        simp at hmem
+      | some _ => simp
+
+
+/-- `FullWalk.producible` produces a walk via `FullWalk.shortest`, so its returned path
+is guaranteed to be shortest (see `producible_shortest`). -/
+instance FullWalk.producible [LinearOrder V] (graph : Graph) (origin dest : V) :
+    Producible (FullWalk graph origin dest) := by
+  match h : FullWalk.shortest graph origin dest with
+  | some paths => exact .possible paths (FullWalk.shortest_walk h)
+  | none =>
+    refine .impossible ?_
+    intro segs fw
+    obtain ⟨segs', ⟨origin_nodup, dest_nodup⟩, fw'⟩ := fw.exists_non_dup
+    have hsome := FullWalk.shortest_isSome_of_walk fw' origin_nodup dest_nodup
+    rw [h] at hsome
+    simp at hsome
+
+
+
+/-- decideList returns the shortest continuation: among all non-repeating walks from
+`current` to `dest` that avoid both `seenRefs` and `origin`, the result has minimum
+total segment count (bounded by `seenRefs.length + altPostcurr.length + 1`).
+
+The `originNotInAlt` premise is needed because the proof reduces to calling
+`decideList_completeness` on the combined walk `origin → seenRefs → current → altPostcurr → dest`,
+whose nodup condition requires `origin` not to reappear in `altPostcurr`. The premise
+also yields `origin ≠ head` for the recursive call. -/
+theorem FullWalk.decideList_shortest [LinearOrder V] {current : V}
+  (hseenswalk : FullWalk graph origin current seenRefs)
+  (h : FullWalk.decideList graph origin current dest seenRefs seenNodup = .hasPath result)
+  (fwAlt : FullWalk graph current dest altPostcurr)
+  (altNoOverlap : ∀ seen ∈ seenRefs, seen ∉ current :: altPostcurr)
+  (altNodupCurr : (current :: altPostcurr).Nodup)
+  (altNodupDest : (dest :: altPostcurr).Nodup)
+  (originNeqCurrent : origin ≠ current)
+  (originNotSeen : origin ∉ seenRefs)
+  (destNotSeen : dest ∉ seenRefs)
+  (originNotInAlt : origin ∉ altPostcurr)
+  : result.length ≤ seenRefs.length + altPostcurr.length + 1 := by
+  fun_induction FullWalk.decideList graph origin current dest seenRefs seenNodup
+    generalizing altPostcurr result
+  with
+  | case1 => simp at h; subst_eqs; omega
+  | case2 => simp at h
+  | case3 => simp at h
+  | @case4 current seenRefs seenNodup hncurreqdest currninseens nodup filtered shortest
+      child_v segs hshortest ih =>
+    simp at h; subst_eqs
+    cases hpc : altPostcurr with
+    | nil =>
+      rw [hpc] at fwAlt
+      cases fwAlt with
+      | direct dref =>
+        have dest_sort : dest ∈ (graph current).sort (· ≤ ·) := (Finset.mem_sort _).mpr dref
+        have hdec : decideList graph origin dest dest (seenRefs ++ [current]) nodup
+            = .hasPath (seenRefs ++ [current]) := by unfold decideList; simp
+        have hmem_filt : (dest, seenRefs ++ [current]) ∈ filtered :=
+          List.mem_filterMap.mpr ⟨dest, dest_sort, by simp [hdec]⟩
+        have := List.minBy_min hshortest _ hmem_filt
+        simp at this
+        omega
+    | cons head tail =>
+      have dref : DirectRef graph current head := fwAlt.ref_segment_cons hpc
+      have head_sort : head ∈ (graph current).sort (· ≤ ·) := (Finset.mem_sort _).mpr dref
+      have fwTail : FullWalk graph head dest tail := fwAlt.cons_head_segment hpc
+      rw [hpc] at altNodupCurr altNodupDest altNoOverlap originNotInAlt
+      have hcurr_nin : current ∉ head :: tail := (List.nodup_cons.mp altNodupCurr).1
+      have hht_nodup : (head :: tail).Nodup := (List.nodup_cons.mp altNodupCurr).2
+      have hdest_nin : dest ∉ head :: tail := (List.nodup_cons.mp altNodupDest).1
+      have hhead_nin_tail : head ∉ tail := (List.nodup_cons.mp hht_nodup).1
+      have htail_nodup : tail.Nodup := (List.nodup_cons.mp hht_nodup).2
+      have hcurr_ne_head : current ≠ head := by
+        rintro rfl; exact hcurr_nin (by simp)
+      have hcurr_nin_tail : current ∉ tail := fun hc =>
+        hcurr_nin (List.mem_cons_of_mem _ hc)
+      have hdest_ne_head : dest ≠ head := by
+        rintro rfl; exact hdest_nin (by simp)
+      have hdest_nin_tail : dest ∉ tail := fun hd =>
+        hdest_nin (List.mem_cons_of_mem _ hd)
+      have horigin_ne_head : origin ≠ head := by
+        rintro rfl; exact originNotInAlt (by simp)
+      have horigin_nin_tail : origin ∉ tail := fun ho =>
+        originNotInAlt (List.mem_cons_of_mem _ ho)
+      have hhead_nin_seens : head ∉ seenRefs := fun hh =>
+        altNoOverlap head hh (List.mem_cons_of_mem _ (by simp))
+      have htail_disj_seens : ∀ x ∈ tail, x ∉ seenRefs := fun x hxt hxs =>
+        altNoOverlap x hxs (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hxt))
+      have tailNoOverlap : ∀ seen ∈ seenRefs ++ [current], seen ∉ head :: tail := by
+        intro seen hseen hmem
+        rw [List.mem_append, List.mem_singleton] at hseen
+        rcases hseen with hseen | rfl
+        · exact altNoOverlap seen hseen (List.mem_cons_of_mem _ hmem)
+        · exact hcurr_nin hmem
+      have tailNodupHead : (head :: tail).Nodup := hht_nodup
+      have tailNodupDest : (dest :: tail).Nodup :=
+        List.nodup_cons.mpr ⟨hdest_nin_tail, htail_nodup⟩
+      have fwToHead : FullWalk graph origin head (seenRefs ++ [current]) := by
+        simpa using hseenswalk.append (.direct dref)
+      have fwFull : FullWalk graph origin dest (seenRefs ++ [current] ++ [head] ++ tail) :=
+        fwToHead.append fwTail
+      have inner_nodup : (seenRefs ++ [current] ++ [head] ++ tail).Nodup := by
+        rw [show seenRefs ++ [current] ++ [head] ++ tail
+            = (seenRefs ++ [current]) ++ (head :: tail) from by simp,
+            List.nodup_append]
+        refine ⟨nodup, hht_nodup, ?_⟩
+        rintro a ha b hb rfl
+        exact tailNoOverlap a ha hb
+      have segsunique : (origin :: seenRefs ++ [current] ++ [head] ++ tail).Nodup
+          ∧ (dest :: seenRefs ++ [current] ++ [head] ++ tail).Nodup := by
+        refine ⟨List.nodup_cons.mpr ⟨?_, inner_nodup⟩, List.nodup_cons.mpr ⟨?_, inner_nodup⟩⟩
+        · intro hin
+          simp at hin
+          rcases hin with hin | hin | hin | hin
+          · exact originNotSeen hin
+          · exact originNeqCurrent hin
+          · exact horigin_ne_head hin
+          · exact horigin_nin_tail hin
+        · intro hin
+          simp at hin
+          rcases hin with hin | hin | hin | hin
+          · exact destNotSeen hin
+          · exact hncurreqdest hin.symm
+          · exact hdest_ne_head hin
+          · exact hdest_nin_tail hin
+      have ⟨childResult, hchildDec⟩ :
+          ∃ cr, decideList graph origin head dest (seenRefs ++ [current]) nodup = .hasPath cr :=
+        decideList_completeness (seenRefs := seenRefs ++ [current])
+          (segsprecurr := seenRefs ++ [current]) (segspostcurr := tail)
+          (by simp) segsunique fwToHead fwFull tailNoOverlap
+      have hmem_filt : (head, childResult) ∈ filtered :=
+        List.mem_filterMap.mpr ⟨head, head_sort, by simp [hchildDec]⟩
+      have hminBy := List.minBy_min hshortest _ hmem_filt
+      simp at hminBy
+      have hih := ih head fwToHead hchildDec fwTail
+        tailNoOverlap tailNodupHead tailNodupDest horigin_ne_head
+        (by simp; exact ⟨originNotSeen, originNeqCurrent⟩)
+        (by simp; exact ⟨destNotSeen, Ne.symm hncurreqdest⟩)
+        horigin_nin_tail
+      simp at hih ⊢
+      omega
+
+
+/-- Clean outside-view version of `decideList_shortest`: when called with empty
+`seenRefs`, `decideList`'s result is no longer than any simple-path walk from
+`origin` to `dest` whose first intermediate node is `current`.
+
+A "simple path" here means a walk whose intermediate segments don't repeat the
+origin or the destination. The two `Nodup` hypotheses together state exactly that. -/
+theorem FullWalk.decideList_shortest_fresh [LinearOrder V]
+  {origin current dest : V} {altPostcurr result : List V}
+  (h : FullWalk.decideList graph origin current dest [] (by simp) = .hasPath result)
+  (fwAlt : FullWalk graph origin dest (current :: altPostcurr))
+  (originNodup : (origin :: current :: altPostcurr).Nodup)
+  (destNodup : (dest :: current :: altPostcurr).Nodup)
+  : result.length ≤ (current :: altPostcurr).length := by
+  have dref : DirectRef graph origin current := fwAlt.ref_segment_cons rfl
+  have fwTail : FullWalk graph current dest altPostcurr := fwAlt.cons_head_segment rfl
+  have hseenswalk : FullWalk graph origin current [] := .direct dref
+  have origin_nin_full : origin ∉ current :: altPostcurr := (List.nodup_cons.mp originNodup).1
+  have current_alt_nodup : (current :: altPostcurr).Nodup := (List.nodup_cons.mp originNodup).2
+  have dest_nin_full : dest ∉ current :: altPostcurr := (List.nodup_cons.mp destNodup).1
+  have alt_nodup : altPostcurr.Nodup := (List.nodup_cons.mp current_alt_nodup).2
+  have originNeqCurrent : origin ≠ current := by
+    rintro rfl; exact origin_nin_full (by simp)
+  have originNotInAlt : origin ∉ altPostcurr := fun ho =>
+    origin_nin_full (List.mem_cons_of_mem _ ho)
+  have destAltNodup : (dest :: altPostcurr).Nodup :=
+    List.nodup_cons.mpr ⟨fun hd => dest_nin_full (List.mem_cons_of_mem _ hd), alt_nodup⟩
+  have bound := decideList_shortest hseenswalk h fwTail
+    (by simp) current_alt_nodup destAltNodup originNeqCurrent
+    (by simp) (by simp) originNotInAlt
+  simp at bound ⊢
+  omega
+
+
+
+
+/-- Outside-view shortest theorem: the path returned by `shortest` is no longer than
+any simple-path walk from `origin` to `dest`. -/
+theorem FullWalk.shortest_le [LinearOrder V] {graph : Graph} {origin dest : V}
+    {paths : List V} (h : FullWalk.shortest graph origin dest = some paths)
+    {altSegments : List V}
+    (fwAlt : FullWalk graph origin dest altSegments)
+    (origin_nodup : (origin :: altSegments).Nodup)
+    (dest_nodup : (dest :: altSegments).Nodup)
+    : paths.length ≤ altSegments.length := by
+  unfold shortest at h
+  split at h
+  · simp at h
+    subst h
+    simp
+  · rename_i hdirect_neg
+    cases altSegments with
+    | nil =>
+      cases fwAlt with
+      | direct hd => exact absurd hd hdirect_neg
+    | cons head tail =>
+      have dref : head ∈ graph origin := fwAlt.ref_segment_cons rfl
+      have head_sort : head ∈ (graph origin).sort (· ≤ ·) := (Finset.mem_sort _).mpr dref
+      have ⟨ps, hdec⟩ := fwAlt.decideList_completeness_fresh (current := head)
+        (segspostcurr := tail) (by simp) ⟨origin_nodup, dest_nodup⟩
+      have hdec' : decideList graph origin head dest [] (by simp) = .hasPath ps := hdec
+      have hmem : ps ∈ ((graph origin).sort (· ≤ ·) |>.filterMap (fun child =>
+          match decideList graph origin child dest [] (by simp) with
+          | .noPath => none
+          | .hasPath ps => some ps)) := by
+        apply List.mem_filterMap.mpr
+        refine ⟨head, head_sort, ?_⟩
+        simp [hdec']
+      have hbound := List.minBy_min h _ hmem
+      have hps_bound :=
+        FullWalk.decideList_shortest_fresh hdec' fwAlt origin_nodup dest_nodup
+      simp at hbound hps_bound ⊢
+      omega
+
+
+/-- The cleanest outside-view theorem: when `FullWalk.producible` yields a path,
+that path is no longer than any simple-path alternative from `origin` to `dest`. -/
+theorem FullWalk.producible_shortest [LinearOrder V] {graph : Graph} {origin dest : V}
+    {paths : List V} {walk : FullWalk graph origin dest paths}
+    (h : (FullWalk.producible graph origin dest : Producible _) = .possible paths walk)
+    {altSegments : List V}
+    (fwAlt : FullWalk graph origin dest altSegments)
+    (origin_nodup : (origin :: altSegments).Nodup)
+    (dest_nodup : (dest :: altSegments).Nodup)
+    : paths.length ≤ altSegments.length := by
+  have hsome : FullWalk.shortest graph origin dest = some paths := by
+    unfold FullWalk.producible at h
+    split at h
+    · rename_i ps hs
+      cases h
+      exact hs
+    · contradiction
+  exact FullWalk.shortest_le hsome fwAlt origin_nodup dest_nodup
+
+
+/-- For any walk, there exists a walk with the fewest segments possible -/
+theorem FullWalk.exists_shortest
+  (fw : FullWalk graph origin dest segments)
+  : ∃ segments', FullWalk graph origin dest segments' ∧
+    ∀ segments'', FullWalk graph origin dest segments'' → segments'.length ≤ segments''.length := by
+  classical
+  have hP : ∃ n, ∃ segs, segs.length = n ∧ FullWalk graph origin dest segs :=
+    ⟨segments.length, segments, rfl, fw⟩
+  obtain ⟨segs, hlen, fwSegs⟩ := Nat.find_spec hP
+  exact ⟨segs, fwSegs, fun segs' fw' => by
+    have : Nat.find hP ≤ segs'.length := Nat.find_min' hP ⟨segs', rfl, fw'⟩
+    omega⟩
+
+
+/-- A shortest walk has no repeated nodes: origin and dest don't appear in the
+intermediate segments, and the segments themselves contain no duplicates. -/
+theorem FullWalk.shortest_nodup
+  (fw : FullWalk graph origin dest segments)
+  (hshortest : ∀ segments', FullWalk graph origin dest segments' → segments.length ≤ segments'.length)
+  : (origin :: segments).Nodup ∧ (dest :: segments).Nodup := by
+  have hsegs_nodup : segments.Nodup := by
+    by_contra hdup
+    obtain ⟨i, j, hij, hjlen, heq⟩ := List.exists_dup_indices hdup
+    have hilen : i < segments.length := Nat.lt_trans hij hjlen
+    have heq' : segments[i] = segments[j] := by simp [hilen, hjlen] at heq; exact heq
+    have walk1 := fw.from_start_to_seg i hilen
+    have walk2 := fw.from_seg_to_end j hjlen
+    rw [← heq'] at walk2
+    have combined := walk1.append walk2
+    have hle := hshortest _ combined
+    simp at hle
+    omega
+  have horig : origin ∉ segments := by
+    intro hmem
+    obtain ⟨i, hilen, heq⟩ := segments.getElem_of_mem hmem
+    have sub := fw.from_seg_to_end i hilen
+    rw [heq] at sub
+    have hle := hshortest _ sub
+    simp at hle
+    omega
+  have hdest : dest ∉ segments := by
+    intro hmem
+    obtain ⟨i, hilen, heq⟩ := segments.getElem_of_mem hmem
+    have sub := fw.from_start_to_seg i hilen
+    rw [heq] at sub
+    have hle := hshortest _ sub
+    simp at hle
+    omega
+  exact ⟨List.nodup_cons.mpr ⟨horig, hsegs_nodup⟩, List.nodup_cons.mpr ⟨hdest, hsegs_nodup⟩⟩
