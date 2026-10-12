@@ -15,7 +15,9 @@ vertex sequence `a :: segs ++ [b]`.
 
 ## Main results
 
-* `AdjList.instDecidableTransGen`: reachability in an `AdjList` is decidable, by depth-first search.
+* `AdjList.reaches_iff`: frontier-based breadth-first search with early exit (`AdjList.reaches`)
+  decides reachability, giving `AdjList.instDecidableTransGen`. The simpler layered search
+  `AdjList.reachableWithin` serves as its specification.
 * `Relation.instDecidableTransGen`: more generally, the transitive closure of any decidable
   relation on a finite type is decidable.
 * `AdjList.shortest`: computes a shortest walk, see `shortest_fullWalk`, `shortest_le` and
@@ -163,20 +165,89 @@ theorem mem_reachableWithin {a x : V} {k : ℕ} :
       · obtain ⟨w, hy⟩ := FullWalk.append_iff.mp w
         exact .inr ⟨y, ⟨s, w, by simp at hs; omega⟩, FullWalk.nil_iff.mp hy⟩
 
+theorem reachableWithin_mono {a : V} {j k : ℕ} (h : j ≤ k) :
+    g.reachableWithin a j ⊆ g.reachableWithin a k := fun _ hx =>
+  have ⟨s, w, hs⟩ := mem_reachableWithin.mp hx
+  mem_reachableWithin.mpr ⟨s, w, by omega⟩
+
+/-- Only the vertices new in layer `k + 1` contribute anything new to layer `k + 2`. -/
+theorem reachableWithin_add_two (a : V) (k : ℕ) :
+    g.reachableWithin a (k + 2) = g.reachableWithin a (k + 1) ∪
+      (g.reachableWithin a (k + 1) \ g.reachableWithin a k).biUnion g := by
+  rw [reachableWithin, ← Finset.union_sdiff_of_subset (g.reachableWithin_mono (Nat.le_succ k)),
+    Finset.union_biUnion, ← Finset.union_assoc, Finset.union_sdiff_of_subset
+      (g.reachableWithin_mono (Nat.le_succ k))]
+  rfl
+
+/-- Once a layer adds nothing new, no later layer does. -/
+theorem reachableWithin_add_of_succ_eq {a : V} {k : ℕ}
+    (h : g.reachableWithin a (k + 1) = g.reachableWithin a k) :
+    ∀ n, g.reachableWithin a (k + n) = g.reachableWithin a k
+  | 0 => rfl
+  | n + 1 => by
+    rw [← Nat.add_assoc, reachableWithin, reachableWithin_add_of_succ_eq h n]
+    exact h
+
+/-- Breadth-first search for `b`, for at most `n` more rounds, given the vertices `seen` so far
+and the `frontier` of those first seen in the latest round. Only the frontier is expanded, and the
+search stops early once `b` is seen or the frontier is empty. -/
+def searchFrom (g : AdjList V) (b : V) : ℕ → Finset V → Finset V → Bool
+  | 0, seen, _ => b ∈ seen
+  | n + 1, seen, frontier =>
+    if b ∈ seen then true
+    else if frontier = ∅ then false
+    else
+      let next := frontier.biUnion g \ seen
+      g.searchFrom b n (seen ∪ next) next
+
+theorem searchFrom_reachableWithin (a b : V) (n j : ℕ) :
+    g.searchFrom b n (g.reachableWithin a (j + 1))
+      (g.reachableWithin a (j + 1) \ g.reachableWithin a j) =
+      decide (b ∈ g.reachableWithin a (j + 1 + n)) := by
+  induction n generalizing j with
+  | zero => simp [searchFrom]
+  | succ n ih =>
+    simp only [searchFrom]
+    split_ifs with hb hf
+    · simpa using g.reachableWithin_mono (by omega) hb
+    · have h := (Finset.sdiff_eq_empty_iff_subset.mp hf).antisymm
+        (g.reachableWithin_mono (Nat.le_succ j))
+      rw [show j + 1 + (n + 1) = j + (n + 2) by omega, reachableWithin_add_of_succ_eq h, ← h]
+      simpa using hb
+    · rw [Finset.union_sdiff_self_eq_union, ← reachableWithin_add_two,
+        show (g.reachableWithin a (j + 1) \ g.reachableWithin a j).biUnion g \
+            g.reachableWithin a (j + 1) = g.reachableWithin a (j + 2) \ g.reachableWithin a (j + 1)
+          by rw [reachableWithin_add_two, Finset.union_sdiff_left],
+        ih, show j + 1 + 1 + n = j + 1 + (n + 1) by omega]
+
 variable [Fintype V]
 
 /-- A repetition-free walk has fewer than `card V` intermediate vertices, so it suffices to search
 `card V` layers deep. -/
-theorem transGen_iff_mem_reachableWithin {a b : V} :
-    TransGen g.Adj a b ↔ b ∈ g.reachableWithin a (Fintype.card V) := by
+theorem transGen_iff_mem_reachableWithin_of_le {a b : V} {k : ℕ} (hk : Fintype.card V ≤ k) :
+    TransGen g.Adj a b ↔ b ∈ g.reachableWithin a k := by
   rw [mem_reachableWithin, transGen_iff_exists_fullWalk]
   refine ⟨fun ⟨s, w⟩ => ?_, fun ⟨s, w, _⟩ => ⟨s, w⟩⟩
   obtain ⟨s, -, hb, w⟩ := w.exists_nodup
   have := hb.length_le_card
   exact ⟨s, w, by simp at this; omega⟩
 
+theorem transGen_iff_mem_reachableWithin {a b : V} :
+    TransGen g.Adj a b ↔ b ∈ g.reachableWithin a (Fintype.card V) :=
+  transGen_iff_mem_reachableWithin_of_le le_rfl
+
+/-- Whether `b` is reachable from `a`, by breadth-first search. -/
+def reaches (g : AdjList V) (a b : V) : Bool :=
+  g.searchFrom b (Fintype.card V) (g a) (g a)
+
+theorem reaches_iff {a b : V} : g.reaches a b ↔ TransGen g.Adj a b := by
+  have h := g.searchFrom_reachableWithin a b (Fintype.card V) 0
+  simp only [reachableWithin, Finset.biUnion_empty, Finset.union_empty, Finset.sdiff_empty] at h
+  rw [reaches, h, decide_eq_true_iff,
+    transGen_iff_mem_reachableWithin_of_le (k := 0 + 1 + Fintype.card V) (by omega)]
+
 instance instDecidableTransGen (a b : V) : Decidable (TransGen g.Adj a b) :=
-  decidable_of_iff _ transGen_iff_mem_reachableWithin.symm
+  decidable_of_iff _ reaches_iff
 
 /-- The adjacency list of a decidable relation on a finite type. -/
 def ofRel (r : V → V → Prop) [DecidableRel r] : AdjList V := fun a => Finset.univ.filter (r a)
