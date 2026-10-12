@@ -188,6 +188,22 @@ theorem reachableWithin_add_of_succ_eq {a : V} {k : ℕ}
     rw [← Nat.add_assoc, reachableWithin, reachableWithin_add_of_succ_eq h n]
     exact h
 
+/-- Expanding the frontier of layer `k + 1` yields the frontier of layer `k + 2`. -/
+theorem expand_frontier (a : V) (k : ℕ) :
+    (g.reachableWithin a (k + 1) \ g.reachableWithin a k).biUnion g \ g.reachableWithin a (k + 1) =
+      g.reachableWithin a (k + 2) \ g.reachableWithin a (k + 1) := by
+  rw [reachableWithin_add_two, Finset.union_sdiff_left]
+
+theorem union_expand_frontier (a : V) (k : ℕ) :
+    g.reachableWithin a (k + 1) ∪ ((g.reachableWithin a (k + 1) \ g.reachableWithin a k).biUnion g \
+      g.reachableWithin a (k + 1)) = g.reachableWithin a (k + 2) := by
+  rw [Finset.union_sdiff_self_eq_union, ← reachableWithin_add_two]
+
+theorem eq_of_frontier_eq_empty {a : V} {k : ℕ}
+    (h : g.reachableWithin a (k + 1) \ g.reachableWithin a k = ∅) :
+    g.reachableWithin a (k + 1) = g.reachableWithin a k :=
+  (Finset.sdiff_eq_empty_iff_subset.mp h).antisymm (g.reachableWithin_mono (Nat.le_succ k))
+
 /-- Breadth-first search for `b`, for at most `n` more rounds, given the vertices `seen` so far
 and the `frontier` of those first seen in the latest round. Only the frontier is expanded, and the
 search stops early once `b` is seen or the frontier is empty. -/
@@ -210,15 +226,10 @@ theorem searchFrom_reachableWithin (a b : V) (n j : ℕ) :
     simp only [searchFrom]
     split_ifs with hb hf
     · simpa using g.reachableWithin_mono (by omega) hb
-    · have h := (Finset.sdiff_eq_empty_iff_subset.mp hf).antisymm
-        (g.reachableWithin_mono (Nat.le_succ j))
+    · have h := g.eq_of_frontier_eq_empty hf
       rw [show j + 1 + (n + 1) = j + (n + 2) by omega, reachableWithin_add_of_succ_eq h, ← h]
       simpa using hb
-    · rw [Finset.union_sdiff_self_eq_union, ← reachableWithin_add_two,
-        show (g.reachableWithin a (j + 1) \ g.reachableWithin a j).biUnion g \
-            g.reachableWithin a (j + 1) = g.reachableWithin a (j + 2) \ g.reachableWithin a (j + 1)
-          by rw [reachableWithin_add_two, Finset.union_sdiff_left],
-        ih, show j + 1 + 1 + n = j + 1 + (n + 1) by omega]
+    · rw [union_expand_frontier, expand_frontier, ih, show j + 1 + 1 + n = j + 1 + (n + 1) by omega]
 
 variable [Fintype V]
 
@@ -265,24 +276,31 @@ section Shortest
 
 variable [LinearOrder V]
 
-/-- A walk from `a` to `x` of fewer than `k` edges, given by its intermediate vertices, provided
-`x ∈ g.reachableWithin a k`. Built backwards, choosing the least predecessor one layer closer
-to `a` at each step. -/
-def pathTo (g : AdjList V) (a : V) : ℕ → V → List V
-  | 0, _ => []
-  | k + 1, x =>
+/-- The layers `[reachableWithin a (k - 1), …, reachableWithin a 0]` below layer `k`. -/
+def layers (g : AdjList V) (a : V) (k : ℕ) : List (Finset V) :=
+  (List.range k).reverse.map (g.reachableWithin a)
+
+theorem layers_succ (a : V) (k : ℕ) :
+    g.layers a (k + 1) = g.reachableWithin a k :: g.layers a k := by
+  simp [layers, List.range_succ]
+
+/-- A walk from `a` to `x`, given by its intermediate vertices, through the given layers (nearest
+first). Built backwards, choosing the least predecessor in the next layer down at each step. -/
+def pathAlong (g : AdjList V) (a : V) : List (Finset V) → V → List V
+  | [], _ => []
+  | L :: Ls, x =>
     if x ∈ g a then []
-    else if h : ((g.reachableWithin a k).filter (x ∈ g ·)).Nonempty then
-      g.pathTo a k (((g.reachableWithin a k).filter (x ∈ g ·)).min' h) ++
-        [((g.reachableWithin a k).filter (x ∈ g ·)).min' h]
+    else if h : (L.filter (x ∈ g ·)).Nonempty then
+      g.pathAlong a Ls ((L.filter (x ∈ g ·)).min' h) ++ [(L.filter (x ∈ g ·)).min' h]
     else []
 
-theorem pathTo_spec {a x : V} {k : ℕ} (hx : x ∈ g.reachableWithin a k) :
-    g.FullWalk a x (g.pathTo a k x) ∧ (g.pathTo a k x).length < k := by
+theorem pathAlong_spec {a x : V} {k : ℕ} (hx : x ∈ g.reachableWithin a k) :
+    g.FullWalk a x (g.pathAlong a (g.layers a k) x) ∧
+      (g.pathAlong a (g.layers a k) x).length < k := by
   induction k generalizing x with
   | zero => simp [reachableWithin] at hx
   | succ k ih =>
-    simp only [pathTo]
+    simp only [layers_succ, pathAlong]
     split_ifs with hxa h
     · exact ⟨.direct hxa, by simp⟩
     · have hy := Finset.mem_filter.mp (Finset.min'_mem _ h)
@@ -293,38 +311,76 @@ theorem pathTo_spec {a x : V} {k : ℕ} (hx : x ∈ g.reachableWithin a k) :
       · exact absurd hx hxa
       · exact absurd ⟨y, Finset.mem_filter.mpr ⟨hy, hxy⟩⟩ h
 
+/-- `searchFrom`, additionally recording the searched layers in `acc` (nearest first), which are
+returned once `b` is found. -/
+def searchLayers (g : AdjList V) (b : V) :
+    ℕ → Finset V → Finset V → List (Finset V) → Option (List (Finset V))
+  | 0, seen, _, acc => if b ∈ seen then some acc else none
+  | n + 1, seen, frontier, acc =>
+    if b ∈ seen then some acc
+    else if frontier = ∅ then none
+    else
+      let next := frontier.biUnion g \ seen
+      g.searchLayers b n (seen ∪ next) next (seen :: acc)
+
+theorem searchLayers_isSome (b : V) (n : ℕ) (seen frontier : Finset V) (acc : List (Finset V)) :
+    (g.searchLayers b n seen frontier acc).isSome = g.searchFrom b n seen frontier := by
+  induction n generalizing seen frontier acc with
+  | zero => simp only [searchLayers, searchFrom]; split_ifs with hb <;> simp [hb]
+  | succ n ih => simp only [searchLayers, searchFrom]; split_ifs <;> simp [ih]
+
+/-- The search stops at the first layer containing `b`, returning the layers below it. -/
+theorem searchLayers_eq_some {a b : V} {n j : ℕ} {acc : List (Finset V)}
+    (hb : b ∉ g.reachableWithin a j)
+    (h : g.searchLayers b n (g.reachableWithin a (j + 1))
+      (g.reachableWithin a (j + 1) \ g.reachableWithin a j) (g.layers a (j + 1)) = some acc) :
+    ∃ k, acc = g.layers a (k + 1) ∧ b ∈ g.reachableWithin a (k + 1) ∧
+      b ∉ g.reachableWithin a k := by
+  induction n generalizing j with
+  | zero =>
+    simp only [searchLayers] at h
+    split_ifs at h with hb'
+    · exact ⟨j, (Option.some_inj.mp h).symm, hb', hb⟩
+  | succ n ih =>
+    simp only [searchLayers] at h
+    split_ifs at h with hb' hf
+    · exact ⟨j, (Option.some_inj.mp h).symm, hb', hb⟩
+    · rw [union_expand_frontier, expand_frontier, ← layers_succ] at h
+      exact ih hb' h
+
 variable [Fintype V]
 
 /-- A shortest walk from `a` to `b`, given by its intermediate vertices, or `none` if there is no
 walk. -/
 def shortest (g : AdjList V) (a b : V) : Option (List V) :=
-  if h : b ∈ g.reachableWithin a (Fintype.card V) then
-    some (g.pathTo a (Nat.find (p := (b ∈ g.reachableWithin a ·)) ⟨_, h⟩) b)
-  else none
+  (g.searchLayers b (Fintype.card V) (g a) (g a) [∅]).map (g.pathAlong a · b)
+
+theorem shortest_eq_map (a b : V) :
+    g.shortest a b = (g.searchLayers b (Fintype.card V) (g.reachableWithin a (0 + 1))
+      (g.reachableWithin a (0 + 1) \ g.reachableWithin a 0) (g.layers a (0 + 1))).map
+        (g.pathAlong a · b) := by
+  simp [shortest, layers, reachableWithin]
 
 theorem shortest_fullWalk {a b : V} {p : List V} (h : g.shortest a b = some p) :
     g.FullWalk a b p := by
-  unfold shortest at h
-  split_ifs at h with hb
-  obtain rfl := Option.some_inj.mp h
-  have hex : ∃ k, b ∈ g.reachableWithin a k := ⟨_, hb⟩
-  exact (pathTo_spec (Nat.find_spec hex)).1
+  obtain ⟨acc, hacc, rfl⟩ := Option.map_eq_some_iff.mp (g.shortest_eq_map a b ▸ h)
+  obtain ⟨k, rfl, hb, -⟩ := g.searchLayers_eq_some (by simp [reachableWithin]) hacc
+  exact (pathAlong_spec hb).1
 
 /-- `shortest` returns a walk no longer than any other. -/
 theorem shortest_le {a b : V} {p s : List V} (h : g.shortest a b = some p)
     (w : g.FullWalk a b s) : p.length ≤ s.length := by
-  unfold shortest at h
-  split_ifs at h with hb
-  obtain rfl := Option.some_inj.mp h
-  have hex : ∃ k, b ∈ g.reachableWithin a k := ⟨_, hb⟩
-  have h₁ := (pathTo_spec (Nat.find_spec hex)).2
-  have h₂ := Nat.find_min' hex (mem_reachableWithin.mpr ⟨s, w, Nat.lt_succ_self _⟩)
+  obtain ⟨acc, hacc, rfl⟩ := Option.map_eq_some_iff.mp (g.shortest_eq_map a b ▸ h)
+  obtain ⟨k, rfl, hb, hk⟩ := g.searchLayers_eq_some (by simp [reachableWithin]) hacc
+  have h₁ := (pathAlong_spec hb).2
+  have h₂ : k < s.length + 1 := Nat.lt_of_not_le fun hle =>
+    hk (g.reachableWithin_mono hle (mem_reachableWithin.mpr ⟨s, w, Nat.lt_succ_self _⟩))
   omega
 
 theorem shortest_isSome_iff {a b : V} : (g.shortest a b).isSome ↔ ∃ s, g.FullWalk a b s := by
-  rw [← transGen_iff_exists_fullWalk, transGen_iff_mem_reachableWithin]
-  unfold shortest
-  split_ifs with hb <;> simp [hb]
+  rw [← transGen_iff_exists_fullWalk, ← reaches_iff, shortest_eq_map, Option.isSome_map,
+    searchLayers_isSome]
+  simp [reaches, reachableWithin]
 
 theorem shortest_eq_none_iff {a b : V} : g.shortest a b = none ↔ ∀ s, ¬g.FullWalk a b s := by
   rw [← Option.not_isSome_iff_eq_none, shortest_isSome_iff, not_exists]
