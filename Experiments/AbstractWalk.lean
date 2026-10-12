@@ -1,7 +1,8 @@
-import Mathlib.Data.Finset.Sort
+import Mathlib.Data.Finset.Max
+import Mathlib.Data.Finset.Union
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.List.Chain
-import Mathlib.Data.List.MinMax
+import Mathlib.Data.Nat.Find
 import Mathlib.Logic.Relation
 
 /-!
@@ -136,74 +137,46 @@ theorem transGen_iff_exists_fullWalk {a b : V} : TransGen g.Adj a b ↔ ∃ s, g
 
 /-! ### Deciding reachability -/
 
-section Reaches
+section Reachable
 
 variable [DecidableEq V]
 
-/-- Depth-first search for `dest` from `current`, never re-entering a vertex in `seen`.
-Returns `true` iff `dest` is reachable from `current` in zero or more steps
-(see `reaches_sound` and `reaches_complete`). -/
-def reaches [Fintype V] (g : AdjList V) (current dest : V) (seen : Finset V) : Bool :=
-  if current = dest then true
-  else if _h : current ∈ seen then false
-  else decide (∃ child ∈ g current, reaches g child dest (insert current seen) = true)
-termination_by Fintype.card V - seen.card
-decreasing_by
-  all_goals
-    rw [Finset.card_insert_of_notMem _h]
-    have := Finset.card_lt_univ_of_notMem _h
-    omega
+/-- The vertices reachable from `a` by a walk of between `1` and `k` edges, computed
+breadth-first. -/
+def reachableWithin (g : AdjList V) (a : V) : ℕ → Finset V
+  | 0 => ∅
+  | k + 1 => g a ∪ (g.reachableWithin a k).biUnion g
+
+theorem mem_reachableWithin {a x : V} {k : ℕ} :
+    x ∈ g.reachableWithin a k ↔ ∃ s, g.FullWalk a x s ∧ s.length < k := by
+  induction k generalizing x with
+  | zero => simp [reachableWithin]
+  | succ k ih =>
+    simp only [reachableWithin, Finset.mem_union, Finset.mem_biUnion, ih]
+    constructor
+    · rintro (hx | ⟨y, ⟨s, w, hs⟩, hx⟩)
+      · exact ⟨[], .direct hx, by simp⟩
+      · exact ⟨s ++ [y], w.snoc hx, by simp; omega⟩
+    · rintro ⟨s, w, hs⟩
+      rcases s.eq_nil_or_concat' with rfl | ⟨s, y, rfl⟩
+      · exact .inl (FullWalk.nil_iff.mp w)
+      · obtain ⟨w, hy⟩ := FullWalk.append_iff.mp w
+        exact .inr ⟨y, ⟨s, w, by simp at hs; omega⟩, FullWalk.nil_iff.mp hy⟩
 
 variable [Fintype V]
 
-theorem reaches_self {a : V} {seen : Finset V} : g.reaches a a seen = true := by
-  rw [reaches]
-  simp
-
-theorem reaches_sound {current dest : V} {seen : Finset V}
-    (h : g.reaches current dest seen = true) : ReflTransGen g.Adj current dest := by
-  fun_induction reaches g current dest seen with
-  | case1 => exact .refl
-  | case2 => contradiction
-  | case3 current seen _ _ ih =>
-    simp only [decide_eq_true_eq] at h
-    obtain ⟨child, hchild, hrec⟩ := h
-    exact .head hchild (ih child hrec)
-
-/-- The search succeeds whenever there is a repetition-free walk that avoids `seen`. -/
-theorem reaches_complete {current dest : V} {seen : Finset V} {post : List V}
-    (w : g.FullWalk current dest post) (hnodup : (current :: post).Nodup)
-    (hdisj : ∀ x ∈ current :: post, x ∉ seen) : g.reaches current dest seen = true := by
-  fun_induction reaches g current dest seen generalizing post with
-  | case1 => rfl
-  | case2 current seen _ hin => exact absurd hin (hdisj current (by simp))
-  | case3 current seen _ _ ih =>
-    simp only [decide_eq_true_eq]
-    cases post with
-    | nil => exact ⟨dest, FullWalk.nil_iff.mp w, reaches_self⟩
-    | cons x t =>
-      obtain ⟨hx, w⟩ := FullWalk.cons_iff.mp w
-      obtain ⟨hcurr, hnodup⟩ := List.nodup_cons.mp hnodup
-      refine ⟨x, hx, ih x w hnodup fun y hy => ?_⟩
-      simp only [Finset.mem_insert, not_or]
-      exact ⟨fun h => hcurr (h ▸ hy), hdisj y (List.mem_cons_of_mem _ hy)⟩
-
-theorem transGen_iff_exists_reaches {a b : V} :
-    TransGen g.Adj a b ↔ ∃ c ∈ g a, g.reaches c b ∅ = true := by
-  constructor
-  · intro h
-    obtain ⟨s, w⟩ := transGen_iff_exists_fullWalk.mp h
-    obtain ⟨s, -, hb, w⟩ := w.exists_nodup
-    cases s with
-    | nil => exact ⟨b, FullWalk.nil_iff.mp w, reaches_self⟩
-    | cons c s =>
-      obtain ⟨hac, w⟩ := FullWalk.cons_iff.mp w
-      exact ⟨c, hac, reaches_complete w (List.nodup_cons.mp hb).2 (by simp)⟩
-  · rintro ⟨c, hc, h⟩
-    exact .head' hc (reaches_sound h)
+/-- A repetition-free walk has fewer than `card V` intermediate vertices, so it suffices to search
+`card V` layers deep. -/
+theorem transGen_iff_mem_reachableWithin {a b : V} :
+    TransGen g.Adj a b ↔ b ∈ g.reachableWithin a (Fintype.card V) := by
+  rw [mem_reachableWithin, transGen_iff_exists_fullWalk]
+  refine ⟨fun ⟨s, w⟩ => ?_, fun ⟨s, w, _⟩ => ⟨s, w⟩⟩
+  obtain ⟨s, -, hb, w⟩ := w.exists_nodup
+  have := hb.length_le_card
+  exact ⟨s, w, by simp at this; omega⟩
 
 instance instDecidableTransGen (a b : V) : Decidable (TransGen g.Adj a b) :=
-  decidable_of_iff _ transGen_iff_exists_reaches.symm
+  decidable_of_iff _ transGen_iff_mem_reachableWithin.symm
 
 /-- The adjacency list of a decidable relation on a finite type. -/
 def ofRel (r : V → V → Prop) [DecidableRel r] : AdjList V := fun a => Finset.univ.filter (r a)
@@ -213,7 +186,7 @@ omit [DecidableEq V] in
   ext a b
   simp [ofRel]
 
-end Reaches
+end Reachable
 
 /-! ### Shortest walks -/
 
@@ -221,110 +194,66 @@ section Shortest
 
 variable [LinearOrder V]
 
-/-- Search for a shortest continuation to `dest` of a walk that has just reached `current`, and
-whose intermediate vertices so far are `pre`. Returns the intermediate vertices of the whole
-walk. -/
-def shortestAux [Fintype V] (g : AdjList V) (current dest : V) (pre : List V) : Option (List V) :=
-  if current = dest then some pre
-  else if _h : current ∈ pre then none
-  else
-    ((g current).sort (· ≤ ·)).filterMap (fun child => shortestAux g child dest (pre ++ [current]))
-      |>.argmin List.length
-termination_by Fintype.card V - pre.toFinset.card
-decreasing_by
-  all_goals
-    have h' : current ∉ pre.toFinset := by simpa using _h
-    have : (pre ++ [current]).toFinset = insert current pre.toFinset := by ext; simp
-    rw [this, Finset.card_insert_of_notMem h']
-    have := Finset.card_lt_univ_of_notMem h'
-    omega
+/-- A walk from `a` to `x` of fewer than `k` edges, given by its intermediate vertices, provided
+`x ∈ g.reachableWithin a k`. Built backwards, choosing the least predecessor one layer closer
+to `a` at each step. -/
+def pathTo (g : AdjList V) (a : V) : ℕ → V → List V
+  | 0, _ => []
+  | k + 1, x =>
+    if x ∈ g a then []
+    else if h : ((g.reachableWithin a k).filter (x ∈ g ·)).Nonempty then
+      g.pathTo a k (((g.reachableWithin a k).filter (x ∈ g ·)).min' h) ++
+        [((g.reachableWithin a k).filter (x ∈ g ·)).min' h]
+    else []
+
+theorem pathTo_spec {a x : V} {k : ℕ} (hx : x ∈ g.reachableWithin a k) :
+    g.FullWalk a x (g.pathTo a k x) ∧ (g.pathTo a k x).length < k := by
+  induction k generalizing x with
+  | zero => simp [reachableWithin] at hx
+  | succ k ih =>
+    simp only [pathTo]
+    split_ifs with hxa h
+    · exact ⟨.direct hxa, by simp⟩
+    · have hy := Finset.mem_filter.mp (Finset.min'_mem _ h)
+      obtain ⟨w, hlen⟩ := ih hy.1
+      exact ⟨w.snoc hy.2, by simp; omega⟩
+    · simp only [reachableWithin, Finset.mem_union, Finset.mem_biUnion] at hx
+      obtain hx | ⟨y, hy, hxy⟩ := hx
+      · exact absurd hx hxa
+      · exact absurd ⟨y, Finset.mem_filter.mpr ⟨hy, hxy⟩⟩ h
 
 variable [Fintype V]
-
-theorem shortestAux_self {a : V} {pre : List V} : g.shortestAux a a pre = some pre := by
-  rw [shortestAux]
-  simp
-
-theorem shortestAux_sound {a current dest : V} {pre p : List V} (hw : g.FullWalk a current pre)
-    (h : g.shortestAux current dest pre = some p) : g.FullWalk a dest p := by
-  fun_induction shortestAux g current dest pre with
-  | case1 =>
-    cases h
-    exact hw
-  | case2 => contradiction
-  | case3 current pre _ _ ih =>
-    obtain ⟨child, hchild, hrec⟩ := List.mem_filterMap.mp (List.argmin_mem h)
-    exact ih child (hw.snoc ((Finset.mem_sort _).mp hchild)) hrec
-
-theorem shortestAux_complete {current dest : V} {pre post : List V}
-    (w : g.FullWalk current dest post) (hnodup : (current :: post).Nodup)
-    (hdisj : ∀ x ∈ current :: post, x ∉ pre) :
-    ∃ p, g.shortestAux current dest pre = some p ∧ p.length ≤ pre.length + post.length + 1 := by
-  fun_induction shortestAux g current dest pre generalizing post with
-  | case1 => exact ⟨_, rfl, by omega⟩
-  | case2 current pre _ hin => exact absurd hin (hdisj current (by simp))
-  | case3 current pre _ _ ih =>
-    -- the candidate continuation through the next vertex of `post`
-    obtain ⟨q, hq, hqlen⟩ : ∃ q ∈ ((g current).sort (· ≤ ·)).filterMap
-        (fun child => g.shortestAux child dest (pre ++ [current])),
-        q.length ≤ pre.length + post.length + 1 := by
-      cases post with
-      | nil =>
-        refine ⟨pre ++ [current], List.mem_filterMap.mpr ⟨dest, ?_, shortestAux_self⟩, by simp⟩
-        exact (Finset.mem_sort _).mpr (FullWalk.nil_iff.mp w)
-      | cons x t =>
-        obtain ⟨hx, w⟩ := FullWalk.cons_iff.mp w
-        obtain ⟨hcurr, hnodup⟩ := List.nodup_cons.mp hnodup
-        obtain ⟨q, hq, hqlen⟩ := ih x w hnodup fun y hy => by
-          simp only [List.mem_append, List.mem_singleton, not_or]
-          exact ⟨hdisj y (List.mem_cons_of_mem _ hy), fun h => hcurr (h ▸ hy)⟩
-        refine ⟨q, List.mem_filterMap.mpr ⟨x, (Finset.mem_sort _).mpr hx, hq⟩, ?_⟩
-        simp at hqlen ⊢
-        omega
-    obtain ⟨p, hp⟩ := Option.ne_none_iff_exists'.mp
-      (mt (List.argmin_eq_none (f := List.length)).mp (List.ne_nil_of_mem hq))
-    exact ⟨p, hp, (List.le_of_mem_argmin hq hp).trans hqlen⟩
 
 /-- A shortest walk from `a` to `b`, given by its intermediate vertices, or `none` if there is no
 walk. -/
 def shortest (g : AdjList V) (a b : V) : Option (List V) :=
-  ((g a).sort (· ≤ ·)).filterMap (fun c => g.shortestAux c b []) |>.argmin List.length
+  if h : b ∈ g.reachableWithin a (Fintype.card V) then
+    some (g.pathTo a (Nat.find (p := (b ∈ g.reachableWithin a ·)) ⟨_, h⟩) b)
+  else none
 
 theorem shortest_fullWalk {a b : V} {p : List V} (h : g.shortest a b = some p) :
     g.FullWalk a b p := by
-  obtain ⟨c, hc, hrec⟩ := List.mem_filterMap.mp (List.argmin_mem h)
-  exact shortestAux_sound (.direct ((Finset.mem_sort _).mp hc)) hrec
-
-/-- Some candidate is at least as short as any given walk. -/
-private theorem exists_candidate_le {a b : V} {s : List V} (w : g.FullWalk a b s) :
-    ∃ q ∈ ((g a).sort (· ≤ ·)).filterMap (fun c => g.shortestAux c b []),
-      q.length ≤ s.length := by
-  obtain ⟨s', w', hmin⟩ := w.exists_shortest
-  have hnodup := (w'.nodup_of_shortest hmin).1
-  suffices ∃ q ∈ ((g a).sort (· ≤ ·)).filterMap (fun c => g.shortestAux c b []),
-      q.length ≤ s'.length by
-    obtain ⟨q, hq, hle⟩ := this
-    exact ⟨q, hq, hle.trans (hmin s w)⟩
-  cases s' with
-  | nil =>
-    refine ⟨[], List.mem_filterMap.mpr ⟨b, ?_, shortestAux_self⟩, le_rfl⟩
-    exact (Finset.mem_sort _).mpr (FullWalk.nil_iff.mp w')
-  | cons c t =>
-    obtain ⟨hac, w'⟩ := FullWalk.cons_iff.mp w'
-    obtain ⟨q, hq, hqlen⟩ := shortestAux_complete (pre := []) w' (List.nodup_cons.mp hnodup).2
-      (by simp)
-    exact ⟨q, List.mem_filterMap.mpr ⟨c, (Finset.mem_sort _).mpr hac, hq⟩, by simpa using hqlen⟩
+  unfold shortest at h
+  split_ifs at h with hb
+  obtain rfl := Option.some_inj.mp h
+  have hex : ∃ k, b ∈ g.reachableWithin a k := ⟨_, hb⟩
+  exact (pathTo_spec (Nat.find_spec hex)).1
 
 /-- `shortest` returns a walk no longer than any other. -/
 theorem shortest_le {a b : V} {p s : List V} (h : g.shortest a b = some p)
     (w : g.FullWalk a b s) : p.length ≤ s.length := by
-  obtain ⟨q, hq, hqlen⟩ := exists_candidate_le w
-  exact (List.le_of_mem_argmin hq h).trans hqlen
+  unfold shortest at h
+  split_ifs at h with hb
+  obtain rfl := Option.some_inj.mp h
+  have hex : ∃ k, b ∈ g.reachableWithin a k := ⟨_, hb⟩
+  have h₁ := (pathTo_spec (Nat.find_spec hex)).2
+  have h₂ := Nat.find_min' hex (mem_reachableWithin.mpr ⟨s, w, Nat.lt_succ_self _⟩)
+  omega
 
 theorem shortest_isSome_iff {a b : V} : (g.shortest a b).isSome ↔ ∃ s, g.FullWalk a b s := by
-  refine ⟨fun h => ⟨_, shortest_fullWalk (Option.some_get h).symm⟩, fun ⟨s, w⟩ => ?_⟩
-  obtain ⟨q, hq, -⟩ := exists_candidate_le w
-  exact Option.isSome_iff_ne_none.mpr (mt (List.argmin_eq_none (f := List.length)).mp (List.ne_nil_of_mem hq))
+  rw [← transGen_iff_exists_fullWalk, transGen_iff_mem_reachableWithin]
+  unfold shortest
+  split_ifs with hb <;> simp [hb]
 
 theorem shortest_eq_none_iff {a b : V} : g.shortest a b = none ↔ ∀ s, ¬g.FullWalk a b s := by
   rw [← Option.not_isSome_iff_eq_none, shortest_isSome_iff, not_exists]
