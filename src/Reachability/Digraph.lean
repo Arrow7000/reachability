@@ -1,5 +1,5 @@
 import Mathlib.Combinatorics.Digraph.Basic
-import Experiments.Reachability
+import Reachability
 
 variable {V : Type*}
 

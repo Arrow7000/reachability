@@ -1,0 +1,13 @@
+name = "Reachability"
+version = "0.1.0"
+defaultTargets = ["Reachability"]
+
+[[lean_lib]]
+name = "Reachability"
+srcDir = "src"
+globs = ["Reachability", "Reachability.+"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.34.1"
