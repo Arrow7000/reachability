@@ -1,47 +1,28 @@
 import Mathlib.Combinatorics.Digraph.Basic
 import Experiments.AbstractWalk
 
-variable {V : Type}
+variable {V : Type*}
 
-def Digraph.toAdjList [Fintype V] [DecidableEq V] (G : Digraph V) [DecidableRel G.Adj] : V → Finset V :=
-  fun v => Finset.univ.filter (fun w => G.Adj v w)
+/-- The digraph whose edges are those of an adjacency list. -/
+def Digraph.ofAdjList (g : AdjList V) : Digraph V := ⟨g.Adj⟩
 
+@[simp] theorem Digraph.ofAdjList_adj (g : AdjList V) : (Digraph.ofAdjList g).Adj = g.Adj := rfl
 
-def hasPath [Fintype V] [DecidableEq V]
-    (yourAlgo : (V → Finset V) → V → V → Bool)
-    (G : Digraph V) [DecidableRel G.Adj] (start finish : V) : Bool :=
-  yourAlgo (G.toAdjList) start finish
+variable [Fintype V]
 
+/-- The adjacency list of a finite digraph with decidable adjacency. -/
+def Digraph.toAdjList (G : Digraph V) [DecidableRel G.Adj] : AdjList V := AdjList.ofRel G.Adj
 
-theorem hasPathWithProof
-  [Fintype V] [DecidableEq V]
-  (yourAlgo : (V → Finset V) → V → V → Bool)
-  (sound : ∀ (adjList : V → Finset V) (a b : V),
-    yourAlgo adjList a b = true →
-    Walk adjList a b)
-  (complete : ∀ (adjList : V → Finset V) (a b : V),
-    Walk adjList a b →
-    yourAlgo adjList a b = true)
-  (G : Digraph V) [DecidableRel G.Adj] (a b : V) :
-  yourAlgo G.toAdjList a b = true ↔ Walk G.toAdjList a b :=
-  ⟨sound (G.toAdjList) a b, complete (G.toAdjList) a b⟩
+@[simp] theorem Digraph.toAdjList_adj (G : Digraph V) [DecidableRel G.Adj] :
+    G.toAdjList.Adj = G.Adj :=
+  AdjList.ofRel_adj _
 
+/-- Reachability in a finite digraph is decidable, via `Relation.instDecidableTransGen`. -/
+example [DecidableEq V] (G : Digraph V) [DecidableRel G.Adj] (a b : V) :
+    Decidable (Relation.TransGen G.Adj a b) :=
+  inferInstance
 
-
-
-
-/-- Make a Digraph from a function that takes a vertex and returns all adjacent vertices -/
-def Digraph.mkFromAdjList (adjList : V → Finset V) : Digraph V :=
-  Digraph.mk (λ a b ↦ b ∈ adjList a)
-
-
-def Digraph.mkFromRel (r : V → V → Prop)  : Digraph V :=
-  Digraph.mk r
-
-
-def Digraph.FullWalk_producible
-  [Fintype V] [DecidableEq V] [LinearOrder V]
-  (G : Digraph V)
-  [DecidableRel G.Adj]
-  (a b : V) : Producible (FullWalk G.toAdjList a b) :=
-  FullWalk.producible G.toAdjList a b
+/-- A shortest walk in a finite digraph, see `AdjList.shortest`. -/
+def Digraph.shortestWalk [LinearOrder V] (G : Digraph V) [DecidableRel G.Adj] (a b : V) :
+    Option (List V) :=
+  G.toAdjList.shortest a b
