@@ -7,8 +7,8 @@ and Mathlib.
 
 Graphs are adjacency lists, `AdjList V := V → Finset V`. Reachability is Mathlib's own
 `Relation.TransGen`, and it is decided by a breadth-first search that is proved correct. The
-search is plain structural recursion, so `decide` works on concrete graphs with no
-`native_decide` needed. The same instance also covers the transitive closure of any decidable
+search is plain structural recursion, so `decide` works on small concrete graphs with no
+`native_decide` needed (see [Performance](#performance)). The same instance also covers the transitive closure of any decidable
 relation on a finite type.
 
 ```lean
@@ -59,21 +59,49 @@ a type with `[Fintype V] [DecidableEq V]`, computed by `reaches`.
 `Reachability.Digraph` adds conversions to and from Mathlib's `Digraph`. Every result depends only
 on the standard axioms (`propext`, `Classical.choice`, `Quot.sound`).
 
-## Design
+## Algorithm
 
-`AdjList.reachableWithin g a k`, the set of vertices reachable in at most `k` steps, is defined
-the simple way: expand everything found so far, `k` times. All the proofs are about this
-definition. The efficient searches, `searchFrom` and `searchLayers`, are each related to it by a
-single lemma. Searching `Fintype.card V` layers deep is enough, because a walk that repeats no
-vertex has fewer than `card V` intermediate vertices.
+`reaches` is a breadth-first search that expands only the newly reached vertices each round, and
+stops as soon as `b` is found or a round reaches nothing new. `shortest` runs the same search,
+remembering each round's vertices, then traces a walk back from `b`, picking the least
+predecessor at each step (hence `LinearOrder V`).
 
-`shortest` records each layer as the search runs, then rebuilds the walk backwards from `b`. At
-each step it picks the least predecessor in the next layer down, which is why it needs
-`LinearOrder V`: it makes the choice deterministic. So the walk returned is canonical, not
-merely some shortest walk.
+Vertex sets are Mathlib `Finset`s, which are lists underneath, so set operations take linear
+rather than constant time, and the worst case is `O(V · E)` rather than `O(V + E)`. In exchange,
+the kernel can evaluate the search, which is what makes `decide` work.
 
-Vertex sets are Mathlib `Finset`s, which are lists with duplicates removed. That keeps everything
-kernel-reducible, but `#eval` on graphs with thousands of vertices will be slow.
+## Performance
+
+Representative timings on an Apple M4 Pro, from the benchmarks in [`bench/`](bench/Bench). They
+double as tests, so `lake test` runs them all, printing each one's time.
+
+Compiled code (`#eval`, `#guard`), from [`Bench/Eval.lean`](bench/Bench/Eval.lean):
+
+| Graph | Vertices | Edges | Query | Time |
+|---|---|---|---|---|
+| path | 1,000 | 999 | reachable, 999 steps | 1.6 s |
+| path | 1,000 | 999 | unreachable, whole path explored | 1.6 s |
+| grid | 2,500 | 9,800 | corner to corner | 1.2 s |
+| sparse random | 5,000 | ≈15,000 | reachable | 0.9 s |
+| dense DAG | 1,000 | ≈500,000 | reachable, direct edge | 60 ms |
+| dense DAG | 300 | ≈45,000 | unreachable, everything explored | 0.9 s |
+| dense DAG | 1,000 | ≈500,000 | unreachable, everything explored | 34 s † |
+| grid | 900 | 3,480 | `shortest`, corner to corner | 0.8 s |
+
+Kernel proofs (`decide +kernel`), from [`Bench/Kernel.lean`](bench/Bench/Kernel.lean):
+
+| Graph | Vertices | Query | Time |
+|---|---|---|---|
+| sparse random | 100 | reachable | 80 ms |
+| grid | 100 | corner to corner | 2.7 s |
+| path | 100 | reachable, 99 steps | 6.4 s |
+| path | 200 | reachable, 199 steps | ≈ 4 min † |
+
+† Too slow to run as a test, so recorded in a comment rather than run.
+
+Kernel proofs work for graphs up to about a hundred vertices, and get slow quickly on long
+walks. Plain `decide` first evaluates the instance during elaboration, which hits `maxRecDepth`
+beyond a few dozen vertices; `decide +kernel` skips that step.
 
 ## Installation
 
@@ -83,7 +111,7 @@ Add the library to your `lakefile.toml`, pinned to a release tag:
 [[require]]
 name = "Reachability"
 git = "https://github.com/Arrow7000/reachability"
-rev = "v0.1.0"
+rev = "v0.1.1"
 ```
 
 Then run `lake update Reachability` and `import Reachability`.
@@ -93,6 +121,7 @@ same ones:
 
 | Release | Lean / Mathlib |
 |---|---|
+| `v0.1.1` | `v4.34.1` |
 | `v0.1.0` | `v4.34.1` |
 
 ## Building
@@ -100,4 +129,5 @@ same ones:
 ```bash
 lake exe cache get   # download prebuilt Mathlib oleans
 lake build
+lake test            # run the benchmarks in bench/
 ```

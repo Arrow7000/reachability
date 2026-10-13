@@ -1,6 +1,7 @@
 name = "Reachability"
-version = "0.1.0"
+version = "0.1.1"
 defaultTargets = ["Reachability"]
+testDriver = "Bench"
 
 [[lean_lib]]
 name = "Reachability"
@@ -11,3 +12,8 @@ globs = ["Reachability", "Reachability.+"]
 name = "mathlib"
 scope = "leanprover-community"
 rev = "v4.34.1"
+
+[[lean_lib]]
+name = "Bench"
+srcDir = "bench"
+globs = ["Bench.+"]
