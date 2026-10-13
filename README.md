@@ -72,8 +72,8 @@ the kernel can evaluate the search, which is what makes `decide` work.
 
 ## Performance
 
-Representative timings on an Apple M4 Pro, from the benchmarks in [`bench/`](bench/Bench). They
-double as tests, so `lake test` runs them all, printing each one's time.
+Representative timings on an Apple M4 Pro, from the benchmarks in [`bench/`](bench/Bench).
+`lake build Bench` runs them all, printing each one's time.
 
 Compiled code (`#eval`, `#guard`), from [`Bench/Eval.lean`](bench/Bench/Eval.lean):
 
@@ -97,7 +97,7 @@ Kernel proofs (`decide +kernel`), from [`Bench/Kernel.lean`](bench/Bench/Kernel.
 | path | 100 | reachable, 99 steps | 6.4 s |
 | path | 200 | reachable, 199 steps | ≈ 4 min † |
 
-† Too slow to run as a test, so recorded in a comment rather than run.
+† Too slow to include, so recorded in a comment rather than run.
 
 Kernel proofs work for graphs up to about a hundred vertices, and get slow quickly on long
 walks. Plain `decide` first evaluates the instance during elaboration, which hits `maxRecDepth`
@@ -129,5 +129,6 @@ same ones:
 ```bash
 lake exe cache get   # download prebuilt Mathlib oleans
 lake build
-lake test            # run the benchmarks in bench/
+lake test            # run the tests
+lake build Bench     # run the benchmarks (not run in CI)
 ```

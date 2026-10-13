@@ -1,7 +1,7 @@
 name = "Reachability"
 version = "0.1.1"
 defaultTargets = ["Reachability"]
-testDriver = "Bench"
+testDriver = "Test"
 
 [[lean_lib]]
 name = "Reachability"
@@ -17,3 +17,7 @@ rev = "v4.34.1"
 name = "Bench"
 srcDir = "bench"
 globs = ["Bench.+"]
+
+[[lean_lib]]
+name = "Test"
+srcDir = "test"
