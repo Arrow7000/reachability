@@ -1,5 +1,8 @@
 name = "Reachability"
-version = "0.1.1"
+version = "0.1.2"
+license = "Apache-2.0"
+description = "Verified, kernel-reducible reachability and shortest walks for finite directed graphs"
+keywords = ["graph-theory", "reachability", "breadth-first-search", "mathlib"]
 defaultTargets = ["Reachability"]
 testDriver = "Test"
 

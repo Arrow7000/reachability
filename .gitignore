@@ -1,2 +1,4 @@
 /.lake
 .env
+.mcp.json
+.cursor/

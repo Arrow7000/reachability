@@ -111,7 +111,7 @@ Add the library to your `lakefile.toml`, pinned to a release tag:
 [[require]]
 name = "Reachability"
 git = "https://github.com/Arrow7000/reachability"
-rev = "v0.1.1"
+rev = "v0.1.2"
 ```
 
 Then run `lake update Reachability` and `import Reachability`.
@@ -121,6 +121,7 @@ same ones:
 
 | Release | Lean / Mathlib |
 |---|---|
+| `v0.1.2` | `v4.34.1` |
 | `v0.1.1` | `v4.34.1` |
 | `v0.1.0` | `v4.34.1` |
 
@@ -132,3 +133,7 @@ lake build
 lake test            # run the tests
 lake build Bench     # run the benchmarks (not run in CI)
 ```
+
+## Licence
+
+Apache-2.0, the same as Lean and Mathlib. See [`LICENSE`](LICENSE).
